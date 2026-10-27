@@ -225,6 +225,10 @@ const cn = {
       Title: "自动生成标题",
       SubTitle: "根据对话内容生成合适的标题",
     },
+    WebPageMaxChars: {
+      Title: "网页长度上限",
+      SubTitle: "联网搜索读取的网页超过此字符数时，先由模型总结再返回",
+    },
     Sync: {
       CloudState: "云端数据",
       NotSyncYet: "还没有进行过同步",

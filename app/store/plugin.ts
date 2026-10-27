@@ -6,7 +6,8 @@ import { getClientConfig } from "../config/client";
 import yaml from "js-yaml";
 import { adapter, getOperationId } from "../utils";
 import { useAccessStore } from "./access";
-import { getHeaders } from "../client/api";
+import { useAppConfig } from "./config";
+import { getClientApi, getHeaders } from "../client/api";
 
 const isApp = getClientConfig()?.isApp !== false;
 
@@ -159,6 +160,86 @@ export const FunctionToolService = {
 // built-in web search tool, backed by /api/search (SearXNG)
 export const WEB_SEARCH_PLUGIN_ID = "websearch";
 
+async function summarizeChunk(chunk: string, question?: string) {
+  // dynamic import: ./chat imports this file
+  const { useChatStore } = await import("./chat");
+  const { model, providerName } = useChatStore.getState().currentSession()
+    .mask.modelConfig;
+  const prompt = [
+    "Summarize the following web page content. Keep all concrete facts, numbers, names, dates, code and link urls that could be useful, and drop navigation and boilerplate.",
+    question ? `Focus on information relevant to: ${question}` : "",
+    "Content:",
+    chunk,
+  ].join("\n\n");
+  return new Promise<string>((resolve, reject) =>
+    getClientApi(providerName).llm.chat({
+      messages: [{ role: "user", content: prompt }],
+      config: { model, providerName, stream: false },
+      onFinish: (message, res) => {
+        if (res?.status === 200) return resolve(message);
+        // the error body comes back as the message
+        const tooLong =
+          (res?.status === 400 || res?.status === 413) &&
+          /context|too long|too large|maximum|exceed/i.test(message);
+        reject(
+          Object.assign(new Error(`summarize failed: ${res?.status}`), {
+            tooLong,
+          }),
+        );
+      },
+      onError: reject,
+    }),
+  );
+}
+
+// summarize the text in one request; if it is too long for the model's
+// context, split it in half and summarize each half the same way
+async function summarizeText(text: string, question?: string): Promise<string> {
+  try {
+    return await summarizeChunk(text, question);
+  } catch (e: any) {
+    if (!e?.tooLong || text.length < 2000) throw e;
+    let mid = text.lastIndexOf("\n", text.length / 2);
+    if (mid <= 0) mid = Math.floor(text.length / 2);
+    const halves = await Promise.all([
+      summarizeText(text.slice(0, mid), question),
+      summarizeText(text.slice(mid), question),
+    ]);
+    return halves.join("\n\n");
+  }
+}
+
+async function fetchWebpage(args: { url: string; question?: string }) {
+  const res = await fetch(
+    `/api/fetch-page?url=${encodeURIComponent(args.url)}`,
+    { headers: getHeaders() },
+  );
+  const result = { status: res.status, statusText: res.statusText };
+  if (!res.ok) return { ...result, data: await res.text() };
+
+  const page = await res.json();
+  // pages longer than this are summarized by the chat's own model before being returned
+  const maxChars = Math.max(1000, useAppConfig.getState().webPageMaxChars);
+  if (page.content.length > maxChars) {
+    try {
+      let content = page.content;
+      // joined summaries of many halves can still be over the limit, so repeat
+      while (content.length > maxChars) {
+        const summary = await summarizeText(content, args.question);
+        if (summary.length >= content.length) break;
+        content = summary;
+      }
+      page.content = content.slice(0, maxChars);
+      page.summarized = true;
+    } catch (e) {
+      // fall back to the beginning of the page
+      page.content = page.content.slice(0, maxChars);
+      page.truncated = true;
+    }
+  }
+  return { ...result, data: JSON.stringify(page) };
+}
+
 const WebSearchTool = {
   tools: [
     {
@@ -176,6 +257,26 @@ const WebSearchTool = {
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "fetch_webpage",
+        description:
+          "Fetch a web page or PDF and return its full text content (very long pages are returned as a summary). Links appear as `text [url]`, and you can fetch those urls too, e.g. to read a linked PDF. Use it on urls from web_search results when the snippet is not enough.",
+        parameters: {
+          type: "object",
+          properties: {
+            url: { type: "string", description: "The url of the page" },
+            question: {
+              type: "string",
+              description:
+                "What you are looking for on the page, so a summary of a long page keeps the relevant parts",
+            },
+          },
+          required: ["url"],
+        },
+      },
+    },
   ] as FunctionToolItem[],
   funcs: {
     web_search: (args: { query: string }) =>
@@ -186,6 +287,7 @@ const WebSearchTool = {
         statusText: res.statusText,
         data: await res.text(),
       })),
+    fetch_webpage: fetchWebpage,
   } as Record<string, Function>,
 };
 

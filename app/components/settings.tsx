@@ -1694,6 +1694,25 @@ export function Settings() {
           </ListItem>
 
           <ListItem
+            title={Locale.Settings.WebPageMaxChars.Title}
+            subTitle={Locale.Settings.WebPageMaxChars.SubTitle}
+          >
+            <input
+              aria-label={Locale.Settings.WebPageMaxChars.Title}
+              type="number"
+              min={1000}
+              value={config.webPageMaxChars}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.webPageMaxChars =
+                      e.currentTarget.valueAsNumber || 0),
+                )
+              }
+            ></input>
+          </ListItem>
+
+          <ListItem
             title={Locale.Settings.SendPreviewBubble.Title}
             subTitle={Locale.Settings.SendPreviewBubble.SubTitle}
           >

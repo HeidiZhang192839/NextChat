@@ -227,6 +227,11 @@ const en: LocaleType = {
       Title: "Auto Generate Title",
       SubTitle: "Generate a suitable title based on the conversation content",
     },
+    WebPageMaxChars: {
+      Title: "Web Page Length Limit",
+      SubTitle:
+        "Web pages read by web search that are longer than this many characters are summarized by the model first",
+    },
     Sync: {
       CloudState: "Last Update",
       NotSyncYet: "Not sync yet",
