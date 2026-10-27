@@ -223,6 +223,30 @@
   opacity: 1;
 }
 
+.chat-item-pin {
+  position: absolute;
+  top: 0;
+  right: 18px;
+  transition: all ease 0.3s;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.chat-item:hover > .chat-item-pin {
+  opacity: 0.5;
+  transform: translateX(-4px);
+}
+
+.chat-item:hover > .chat-item-pin:hover,
+.chat-item > .chat-item-pinned {
+  opacity: 1;
+}
+
+.chat-item-pinned {
+  right: 4px;
+  transform: none;
+}
+
 .chat-item-info {
   display: flex;
   justify-content: space-between;

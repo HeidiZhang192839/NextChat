@@ -1,4 +1,5 @@
 import DeleteIcon from "../icons/delete.svg";
+import PinIcon from "../icons/pin.svg";
 
 import styles from "./home.module.scss";
 import {
@@ -23,6 +24,8 @@ import clsx from "clsx";
 export function ChatItem(props: {
   onClick?: () => void;
   onDelete?: () => void;
+  onTogglePin?: () => void;
+  pinned?: boolean;
   title: string;
   count: number;
   time: string;
@@ -87,15 +90,31 @@ export function ChatItem(props: {
           )}
 
           <div
-            className={styles["chat-item-delete"]}
+            className={clsx(styles["chat-item-pin"], {
+              [styles["chat-item-pinned"]]: props.pinned,
+            })}
+            title={props.pinned ? Locale.ChatItem.Unpin : Locale.ChatItem.Pin}
             onClickCapture={(e) => {
-              props.onDelete?.();
+              props.onTogglePin?.();
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <DeleteIcon />
+            <PinIcon />
           </div>
+
+          {!props.pinned && (
+            <div
+              className={styles["chat-item-delete"]}
+              onClickCapture={(e) => {
+                props.onDelete?.();
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <DeleteIcon />
+            </div>
+          )}
         </div>
       )}
     </Draggable>
@@ -124,6 +143,16 @@ export function ChatList(props: { narrow?: boolean }) {
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
+    ) {
+      return;
+    }
+
+    // keep pinned sessions above unpinned ones
+    const pinnedCount = chatStore.pinnedCount();
+    if (
+      sessions[source.index].pinned
+        ? destination.index >= pinnedCount
+        : destination.index < pinnedCount
     ) {
       return;
     }
@@ -161,6 +190,8 @@ export function ChatList(props: { narrow?: boolean }) {
                     chatStore.deleteSession(i);
                   }
                 }}
+                pinned={item.pinned}
+                onTogglePin={() => chatStore.togglePinSession(i)}
                 narrow={props.narrow}
                 mask={item.mask}
               />

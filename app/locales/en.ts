@@ -32,6 +32,8 @@ const en: LocaleType = {
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} messages`,
+    Pin: "Pin",
+    Unpin: "Unpin",
   },
   Chat: {
     SubTitle: (count: number) => `${count} messages`,
@@ -162,6 +164,7 @@ const en: LocaleType = {
     NewChat: "New Chat",
     DeleteChat: "Confirm to delete the selected conversation?",
     DeleteToast: "Chat Deleted",
+    PinnedDeleteBlocked: "Pinned chats cannot be deleted. Unpin it first.",
     Revert: "Revert",
   },
   Settings: {

@@ -31,6 +31,8 @@ const cn = {
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} 条对话`,
+    Pin: "置顶",
+    Unpin: "取消置顶",
   },
   Chat: {
     SubTitle: (count: number) => `共 ${count} 条对话`,
@@ -160,6 +162,7 @@ const cn = {
     NewChat: "新的聊天",
     DeleteChat: "确认删除选中的对话？",
     DeleteToast: "已删除会话",
+    PinnedDeleteBlocked: "已置顶的会话无法删除，请先取消置顶",
     Revert: "撤销",
   },
   Settings: {

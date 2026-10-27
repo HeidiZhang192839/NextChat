@@ -93,6 +93,7 @@ export interface ChatSession {
   lastUpdate: number;
   lastSummarizeIndex: number;
   clearContextIndex?: number;
+  pinned?: boolean;
 
   mask: Mask;
 }
@@ -266,10 +267,30 @@ export const useChatStore = createPersistStore(
           },
         };
 
+        // insert below pinned sessions
+        const index = get().pinnedCount();
         set((state) => ({
-          currentSessionIndex: 0,
-          sessions: [newSession, ...state.sessions],
+          currentSessionIndex: index,
+          sessions: [
+            ...state.sessions.slice(0, index),
+            newSession,
+            ...state.sessions.slice(index),
+          ],
         }));
+      },
+
+      pinnedCount() {
+        return get().sessions.filter((s) => s.pinned).length;
+      },
+
+      togglePinSession(index: number) {
+        const session = get().sessions.at(index);
+        if (!session) return;
+
+        // keep pinned sessions grouped at the top of the list
+        const otherPinned = get().pinnedCount() - Number(!!session.pinned);
+        get().updateTargetSession(session, (s) => (s.pinned = !s.pinned));
+        get().moveSession(index, otherPinned);
       },
 
       clearSessions() {
@@ -329,9 +350,15 @@ export const useChatStore = createPersistStore(
           session.topic = mask.name;
         }
 
+        // insert below pinned sessions
+        const index = get().pinnedCount();
         set((state) => ({
-          currentSessionIndex: 0,
-          sessions: [session].concat(state.sessions),
+          currentSessionIndex: index,
+          sessions: [
+            ...state.sessions.slice(0, index),
+            session,
+            ...state.sessions.slice(index),
+          ],
         }));
       },
 
@@ -347,6 +374,11 @@ export const useChatStore = createPersistStore(
         const deletedSession = get().sessions.at(index);
 
         if (!deletedSession) return;
+
+        if (deletedSession.pinned) {
+          showToast(Locale.Home.PinnedDeleteBlocked);
+          return;
+        }
 
         const sessions = get().sessions.slice();
         sessions.splice(index, 1);
