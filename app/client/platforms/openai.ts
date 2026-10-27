@@ -24,6 +24,7 @@ import {
   streamWithThink,
 } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
+import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 import { ModelSize, DalleQuality, DalleStyle } from "@/app/typing";
 
 import {
@@ -263,6 +264,9 @@ export class ChatGPTApi implements LLMApi {
     const controller = new AbortController();
     options.onController?.(controller);
 
+    const channel = findChannel(modelConfig.providerName);
+    const headers = channel ? channelHeaders(channel) : getHeaders();
+
     try {
       let chatPath = "";
       if (modelConfig.providerName === ServiceProvider.Azure) {
@@ -291,9 +295,8 @@ export class ChatGPTApi implements LLMApi {
           ),
         );
       } else {
-        chatPath = this.path(
-          isDalle3 ? OpenaiPath.ImagePath : OpenaiPath.ChatPath,
-        );
+        const path = isDalle3 ? OpenaiPath.ImagePath : OpenaiPath.ChatPath;
+        chatPath = channel ? channelPath(channel, path) : this.path(path);
       }
       if (shouldStream) {
         let index = -1;
@@ -306,7 +309,7 @@ export class ChatGPTApi implements LLMApi {
         streamWithThink(
           chatPath,
           requestPayload,
-          getHeaders(),
+          headers,
           tools as any,
           funcs,
           controller,
@@ -399,7 +402,7 @@ export class ChatGPTApi implements LLMApi {
           method: "POST",
           body: JSON.stringify(requestPayload),
           signal: controller.signal,
-          headers: getHeaders(),
+          headers,
         };
 
         // make a fetch request

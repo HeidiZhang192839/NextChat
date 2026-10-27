@@ -30,6 +30,15 @@ export enum SubmitKey {
   MetaEnter = "Meta + Enter",
 }
 
+// an OpenAI-compatible endpoint added in 模型&渠道管理
+export type Channel = {
+  id: string;
+  name: string;
+  url: string;
+  apiKey: string;
+  models: string[];
+};
+
 export enum Theme {
   Auto = "auto",
   Dark = "dark",
@@ -62,6 +71,7 @@ export const DEFAULT_CONFIG = {
 
   customModels: "",
   models: DEFAULT_MODELS as any as LLMModel[],
+  channels: [] as Channel[],
 
   modelConfig: {
     model: "gpt-4o-mini" as ModelType,

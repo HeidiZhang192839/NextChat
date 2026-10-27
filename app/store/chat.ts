@@ -35,6 +35,7 @@ import { estimateTokenLength } from "../utils/token";
 import { ModelConfig, ModelType, useAppConfig } from "./config";
 import { useAccessStore } from "./access";
 import { collectModelsWithDefaultModel } from "../utils/model";
+import { findChannel } from "../utils/channel";
 import { createEmptyMask, Mask } from "./mask";
 import { executeMcpAction, getAllTools, isMcpEnabled } from "../mcp/actions";
 import { extractMcpJson, isMcpJson } from "../mcp/utils";
@@ -123,6 +124,10 @@ function getSummarizeModel(
   currentModel: string,
   providerName: string,
 ): string[] {
+  // channel models summarize with themselves, the site may not serve other models
+  if (findChannel(providerName)) {
+    return [currentModel, providerName];
+  }
   // if it is using gpt-* models, force to use 4o-mini to summarize
   if (currentModel.startsWith("gpt") || currentModel.startsWith("chatgpt")) {
     const configStore = useAppConfig.getState();

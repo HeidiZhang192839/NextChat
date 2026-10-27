@@ -34,6 +34,8 @@ const cn = {
   },
   Chat: {
     SubTitle: (count: number) => `共 ${count} 条对话`,
+    Thinking: "思考过程 (点击展开)",
+    Expand: "展开",
     EditMessage: {
       Title: "编辑消息记录",
       Topic: {
@@ -308,6 +310,45 @@ const cn = {
       IsChecking: "正在检查…",
       Check: "重新检查",
       NoAccess: "输入 API Key 或访问密码查看余额",
+    },
+
+    Channel: {
+      Title: "模型&渠道管理",
+      SubTitle: "默认使用站点内置接入点",
+      Edit: "修改模型&渠道",
+      Modal: {
+        Title: "模型 & 渠道配置",
+        ChannelTab: "渠道配置",
+        ModelTab: "模型配置",
+        Add: "新增渠道",
+        Default: "默认渠道",
+        Delete: "删除",
+        Edit: "编辑",
+        ConfirmDelete: (name: string) => `确认删除渠道「${name}」？`,
+      },
+      EditModal: {
+        Title: "编辑渠道",
+        Save: "保存",
+        Name: "渠道名称",
+        Url: "接口地址",
+        UrlSubTitle: "OpenAI 兼容接口，例如 https://api.example.com",
+        ApiKey: "API Key",
+        NameError: {
+          empty: "渠道名称不能为空",
+          chars: "渠道名称不能包含 @ , =",
+          duplicate: "渠道名称与已有渠道或内置服务商重名",
+        },
+        UrlError: "接口地址不能为空",
+      },
+      Models: {
+        Channel: "渠道",
+        Search: "搜索或输入模型名",
+        Add: "添加",
+        Fetch: "从渠道获取",
+        Fetching: "获取中…",
+        FetchFailed: (e: string) => `获取模型列表失败：${e}`,
+        Empty: "暂无模型，输入模型名添加或从渠道获取",
+      },
     },
 
     Access: {

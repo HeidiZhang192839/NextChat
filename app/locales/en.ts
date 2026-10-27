@@ -35,6 +35,8 @@ const en: LocaleType = {
   },
   Chat: {
     SubTitle: (count: number) => `${count} messages`,
+    Thinking: "Thinking (click to expand)",
+    Expand: "Expand",
     EditMessage: {
       Title: "Edit All Messages",
       Topic: {
@@ -312,6 +314,44 @@ const en: LocaleType = {
       IsChecking: "Checking...",
       Check: "Check",
       NoAccess: "Enter API Key to check balance",
+    },
+    Channel: {
+      Title: "Models & Channels",
+      SubTitle: "Uses the site's built-in endpoint by default",
+      Edit: "Edit Models & Channels",
+      Modal: {
+        Title: "Models & Channels",
+        ChannelTab: "Channels",
+        ModelTab: "Models",
+        Add: "Add Channel",
+        Default: "Default Channel",
+        Delete: "Delete",
+        Edit: "Edit",
+        ConfirmDelete: (name: string) => `Delete channel "${name}"?`,
+      },
+      EditModal: {
+        Title: "Edit Channel",
+        Save: "Save",
+        Name: "Channel Name",
+        Url: "Endpoint URL",
+        UrlSubTitle: "OpenAI-compatible, e.g. https://api.example.com",
+        ApiKey: "API Key",
+        NameError: {
+          empty: "Channel name is required",
+          chars: "Channel name cannot contain @ , =",
+          duplicate: "Name is already used by a channel or built-in provider",
+        },
+        UrlError: "Endpoint URL is required",
+      },
+      Models: {
+        Channel: "Channel",
+        Search: "Search or type a model name",
+        Add: "Add",
+        Fetch: "Fetch from channel",
+        Fetching: "Fetching…",
+        FetchFailed: (e: string) => `Failed to fetch models: ${e}`,
+        Empty: "No models yet. Type a name to add, or fetch from the channel",
+      },
     },
     Access: {
       SaasStart: {

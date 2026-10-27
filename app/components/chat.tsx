@@ -1345,6 +1345,9 @@ function _Chat() {
     context.push(copiedHello);
   }
 
+  // every message except this one folds when too long
+  const latestMessageId = session.messages.at(-1)?.id;
+
   // preview messages
   const renderMessages = useMemo(() => {
     return context
@@ -1984,6 +1987,9 @@ function _Chat() {
                               fontFamily={fontFamily}
                               parentRef={scrollRef}
                               defaultShow={i >= messages.length - 6}
+                              foldThinking={!isUser}
+                              fold={message.id !== latestMessageId}
+                              foldResetKey={latestMessageId}
                             />
                             {getMessageImages(message).length == 1 && (
                               <img

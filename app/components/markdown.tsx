@@ -267,9 +267,16 @@ function tryWrapHtmlCode(text: string) {
     );
 }
 
+function keepLongBlankRuns(text: string) {
+  // 3+ consecutive blank lines show as one visible blank line, fewer show none
+  return text.replace(/(```[\s\S]*?```)|\n{4,}/g, (match, codeBlock) =>
+    codeBlock ? codeBlock : "\n\n&nbsp;\n\n",
+  );
+}
+
 function _MarkDownContent(props: { content: string }) {
   const escapedContent = useMemo(() => {
-    return tryWrapHtmlCode(escapeBrackets(props.content));
+    return tryWrapHtmlCode(escapeBrackets(keepLongBlankRuns(props.content)));
   }, [props.content]);
 
   return (
@@ -318,6 +325,15 @@ function _MarkDownContent(props: { content: string }) {
 
 export const MarkdownContent = React.memo(_MarkDownContent);
 
+const MESSAGE_FOLD_HEIGHT = 600;
+
+// thinking is streamed as a leading "> " blockquote (see app/utils/chat.ts)
+function splitThinking(text: string) {
+  if (!text.startsWith("> ")) return ["", text];
+  const end = text.search(/\n\n(?!> )/);
+  return end === -1 ? [text, ""] : [text.slice(0, end), text.slice(end + 2)];
+}
+
 export function Markdown(
   props: {
     content: string;
@@ -326,27 +342,71 @@ export function Markdown(
     fontFamily?: string;
     parentRef?: RefObject<HTMLDivElement>;
     defaultShow?: boolean;
+    foldThinking?: boolean;
+    fold?: boolean;
+    foldResetKey?: string;
   } & React.DOMAttributes<HTMLDivElement>,
 ) {
   const mdRef = useRef<HTMLDivElement>(null);
+  const [thinking, answer] = props.foldThinking
+    ? splitThinking(props.content)
+    : ["", props.content];
+
+  const [tooLong, setTooLong] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const folded = !!props.fold && tooLong && !expanded;
+
+  useEffect(() => {
+    if (mdRef.current) {
+      setTooLong(mdRef.current.scrollHeight > MESSAGE_FOLD_HEIGHT);
+    }
+  }, [props.content, props.loading]);
+
+  // refold whenever a newer message arrives (new reply or regenerate)
+  useEffect(() => {
+    setExpanded(false);
+  }, [props.foldResetKey]);
 
   return (
-    <div
-      className="markdown-body"
-      style={{
-        fontSize: `${props.fontSize ?? 14}px`,
-        fontFamily: props.fontFamily || "inherit",
-      }}
-      ref={mdRef}
-      onContextMenu={props.onContextMenu}
-      onDoubleClickCapture={props.onDoubleClickCapture}
-      dir="auto"
-    >
-      {props.loading ? (
-        <LoadingIcon />
-      ) : (
-        <MarkdownContent content={props.content} />
+    <>
+      <div
+        className="markdown-body"
+        style={{
+          fontSize: `${props.fontSize ?? 14}px`,
+          fontFamily: props.fontFamily || "inherit",
+          maxHeight: folded ? `${MESSAGE_FOLD_HEIGHT}px` : "none",
+          overflowY: folded ? "hidden" : undefined,
+          maskImage: folded
+            ? "linear-gradient(to bottom, #000 80%, transparent)"
+            : undefined,
+        }}
+        ref={mdRef}
+        onContextMenu={props.onContextMenu}
+        onDoubleClickCapture={props.onDoubleClickCapture}
+        dir="auto"
+      >
+        {props.loading ? (
+          <LoadingIcon />
+        ) : (
+          <>
+            {thinking && (
+              <details>
+                <summary>💭 {Locale.Chat.Thinking}</summary>
+                <MarkdownContent content={thinking} />
+              </details>
+            )}
+            <MarkdownContent content={answer} />
+          </>
+        )}
+      </div>
+      {folded && (
+        <button
+          className="markdown-fold-button"
+          onClick={() => setExpanded(true)}
+        >
+          {Locale.Chat.Expand}
+        </button>
       )}
-    </div>
+    </>
   );
 }

@@ -337,6 +337,21 @@ pre {
   }
 }
 
+.markdown-fold-button {
+  display: block;
+  margin: 4px auto 0;
+  padding: 4px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
 .clickable {
   cursor: pointer;
 

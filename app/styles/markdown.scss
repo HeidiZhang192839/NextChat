@@ -412,7 +412,7 @@
 
 .markdown-body p {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .markdown-body blockquote {
@@ -515,7 +515,6 @@
   outline: none;
 }
 
-.markdown-body p,
 .markdown-body blockquote,
 .markdown-body ul,
 .markdown-body ol,
@@ -643,7 +642,7 @@
 }
 
 .markdown-body li > p {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 .markdown-body li + li {
