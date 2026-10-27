@@ -37,6 +37,7 @@ import { useAccessStore } from "./access";
 import { collectModelsWithDefaultModel } from "../utils/model";
 import { findChannel } from "../utils/channel";
 import { createEmptyMask, Mask } from "./mask";
+import { WEB_SEARCH_PLUGIN_ID } from "./plugin";
 import { executeMcpAction, getAllTools, isMcpEnabled } from "../mcp/actions";
 import { extractMcpJson, isMcpJson } from "../mcp/utils";
 
@@ -318,6 +319,8 @@ export const useChatStore = createPersistStore(
 
           session.mask = {
             ...mask,
+            // built-in masks have no plugin list, keep the default web search
+            plugin: mask.plugin ?? session.mask.plugin,
             modelConfig: {
               ...globalModelConfig,
               ...mask.modelConfig,
@@ -865,7 +868,7 @@ export const useChatStore = createPersistStore(
   },
   {
     name: StoreKey.Chat,
-    version: 3.3,
+    version: 3.4,
     migrate(persistedState, version) {
       const state = persistedState as any;
       const newState = JSON.parse(
@@ -927,6 +930,15 @@ export const useChatStore = createPersistStore(
           const config = useAppConfig.getState();
           s.mask.modelConfig.compressModel = "";
           s.mask.modelConfig.compressProviderName = "";
+        });
+      }
+      // web search is on by default, also for sessions created before it existed
+      if (version < 3.4) {
+        newState.sessions.forEach((s) => {
+          const plugin = s.mask.plugin ?? [];
+          if (!plugin.includes(WEB_SEARCH_PLUGIN_ID)) {
+            s.mask.plugin = [WEB_SEARCH_PLUGIN_ID, ...plugin];
+          }
         });
       }
 
