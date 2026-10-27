@@ -1,0 +1,13 @@
+# SearXNG backend for NextChat's built-in web search tool (/api/search)
+use_default_settings: true
+
+server:
+  # secret_key is read from the SEARXNG_SECRET env var
+  limiter: false
+  image_proxy: false
+
+search:
+  # /api/search requests results with format=json
+  formats:
+    - html
+    - json

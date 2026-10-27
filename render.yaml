@@ -1,0 +1,15 @@
+# Render Blueprint: deploys SearXNG for the web search tool
+# (set its URL as SEARXNG_URL in the NextChat deployment)
+services:
+  - type: web
+    name: nextchat-searxng
+    runtime: docker
+    plan: free
+    rootDir: searxng
+    dockerfilePath: ./searxng/Dockerfile
+    dockerContext: ./searxng
+    envVars:
+      - key: SEARXNG_SECRET
+        generateValue: true
+      - key: PORT
+        value: "8080"
