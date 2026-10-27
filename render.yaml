@@ -5,9 +5,10 @@ services:
     name: nextchat-searxng
     runtime: docker
     plan: free
+    # dockerfilePath and dockerContext are relative to rootDir
     rootDir: searxng
-    dockerfilePath: ./searxng/Dockerfile
-    dockerContext: ./searxng
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: SEARXNG_SECRET
         generateValue: true
