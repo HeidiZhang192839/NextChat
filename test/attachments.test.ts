@@ -12,13 +12,18 @@ import { getHeaders, RequestMessage } from "../app/client/api";
 import { useAccessStore } from "../app/store/access";
 import { ServiceProvider } from "../app/constant";
 
+// node 18 (used in CI) has Blob but no global File
+function makeFile(parts: BlobPart[], name: string) {
+  return Object.assign(new Blob(parts), { name }) as File;
+}
+
 function officeFile(name: string, entries: Record<string, string>) {
   const zip = zipSync(
     Object.fromEntries(
       Object.entries(entries).map(([k, v]) => [k, strToU8(v)]),
     ),
   );
-  return new File([zip], name);
+  return makeFile([zip], name);
 }
 
 describe("extractFileText", () => {
@@ -54,16 +59,16 @@ describe("extractFileText", () => {
   });
 
   test("reads plain text and code", async () => {
-    expect(await extractFileText(new File(["print(1)"], "a.py"))).toBe(
+    expect(await extractFileText(makeFile(["print(1)"], "a.py"))).toBe(
       "print(1)",
     );
   });
 
   test("knows which files are documents", () => {
-    expect(isDocumentFile(new File([""], "a.PDF"))).toBe(true);
-    expect(isDocumentFile(new File([""], "a.xlsx"))).toBe(true);
-    expect(isDocumentFile(new File([""], "a.ts"))).toBe(true);
-    expect(isDocumentFile(new File([""], "a.exe"))).toBe(false);
+    expect(isDocumentFile(makeFile([""], "a.PDF"))).toBe(true);
+    expect(isDocumentFile(makeFile([""], "a.xlsx"))).toBe(true);
+    expect(isDocumentFile(makeFile([""], "a.ts"))).toBe(true);
+    expect(isDocumentFile(makeFile([""], "a.exe"))).toBe(false);
   });
 });
 
