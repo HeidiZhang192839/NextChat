@@ -84,6 +84,8 @@ const cn = {
       Clear: "清除聊天",
       Settings: "对话设置",
       UploadImage: "上传图片",
+      Tools: "工具",
+      WebSearch: "联网搜索",
     },
     Rename: "重命名对话",
     Typing: "正在输入…",

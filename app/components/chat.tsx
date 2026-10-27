@@ -44,7 +44,7 @@ import RobotIcon from "../icons/robot.svg";
 import SizeIcon from "../icons/size.svg";
 import QualityIcon from "../icons/hd.svg";
 import StyleIcon from "../icons/palette.svg";
-import PluginIcon from "../icons/plugin.svg";
+import ToolsIcon from "../icons/tools.svg";
 import ShortcutkeyIcon from "../icons/shortcutkey.svg";
 import McpToolIcon from "../icons/tool.svg";
 import HeadphoneIcon from "../icons/headphone.svg";
@@ -60,6 +60,7 @@ import {
   useAppConfig,
   useChatStore,
   usePluginStore,
+  WEB_SEARCH_PLUGIN_ID,
 } from "../store";
 
 import {
@@ -74,7 +75,6 @@ import {
   supportsCustomSize,
   useMobileScreen,
   selectOrCopy,
-  showPlugins,
 } from "../utils";
 
 import { uploadImage as uploadImageRemote } from "@/app/utils/chat";
@@ -795,27 +795,25 @@ export function ChatActions(props: {
           />
         )}
 
-        {showPlugins(currentProviderName, currentModel) && (
-          <ChatAction
-            onClick={() => {
-              if (pluginStore.getAll().length == 0) {
-                navigate(Path.Plugins);
-              } else {
-                setShowPluginSelector(true);
-              }
-            }}
-            text={Locale.Plugin.Name}
-            icon={<PluginIcon />}
-          />
-        )}
+        <ChatAction
+          onClick={() => setShowPluginSelector(true)}
+          text={Locale.Chat.InputActions.Tools}
+          icon={<ToolsIcon />}
+        />
         {showPluginSelector && (
           <Selector
             multiple
             defaultSelectedValue={chatStore.currentSession().mask?.plugin}
-            items={pluginStore.getAll().map((item) => ({
-              title: `${item?.title}@${item?.version}`,
-              value: item?.id,
-            }))}
+            items={[
+              {
+                title: Locale.Chat.InputActions.WebSearch,
+                value: WEB_SEARCH_PLUGIN_ID,
+              },
+              ...pluginStore.getAll().map((item) => ({
+                title: `${item?.title}@${item?.version}`,
+                value: item?.id,
+              })),
+            ]}
             onClose={() => setShowPluginSelector(false)}
             onSelection={(s) => {
               chatStore.updateTargetSession(session, (session) => {

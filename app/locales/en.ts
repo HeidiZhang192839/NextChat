@@ -85,6 +85,8 @@ const en: LocaleType = {
       Clear: "Clear Context",
       Settings: "Settings",
       UploadImage: "Upload Images",
+      Tools: "Tools",
+      WebSearch: "Web Search",
     },
     Rename: "Rename Chat",
     Typing: "Typing…",

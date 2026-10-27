@@ -6,6 +6,7 @@ import { getClientConfig } from "../config/client";
 import yaml from "js-yaml";
 import { adapter, getOperationId } from "../utils";
 import { useAccessStore } from "./access";
+import { getHeaders } from "../client/api";
 
 const isApp = getClientConfig()?.isApp !== false;
 
@@ -155,6 +156,39 @@ export const FunctionToolService = {
   },
 };
 
+// built-in web search tool, backed by /api/search (SearXNG)
+export const WEB_SEARCH_PLUGIN_ID = "websearch";
+
+const WebSearchTool = {
+  tools: [
+    {
+      type: "function",
+      function: {
+        name: "web_search",
+        description:
+          "Search the internet for up-to-date information. Returns a list of results with title, url and content snippet.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "The search query" },
+          },
+          required: ["query"],
+        },
+      },
+    },
+  ] as FunctionToolItem[],
+  funcs: {
+    web_search: (args: { query: string }) =>
+      fetch(`/api/search?q=${encodeURIComponent(args.query)}`, {
+        headers: getHeaders(),
+      }).then(async (res) => ({
+        status: res.status,
+        statusText: res.statusText,
+        data: await res.text(),
+      })),
+  } as Record<string, Function>,
+};
+
 export const createEmptyPlugin = () =>
   ({
     id: nanoid(),
@@ -208,10 +242,13 @@ export const usePluginStore = createPersistStore(
 
     getAsTools(ids: string[]) {
       const plugins = get().plugins;
-      const selected = (ids || [])
-        .map((id) => plugins[id])
-        .filter((i) => i)
-        .map((p) => FunctionToolService.add(p));
+      const selected = [
+        ...((ids || []).includes(WEB_SEARCH_PLUGIN_ID) ? [WebSearchTool] : []),
+        ...(ids || [])
+          .map((id) => plugins[id])
+          .filter((i) => i)
+          .map((p) => FunctionToolService.add(p)),
+      ];
       return [
         // @ts-ignore
         selected.reduce((s, i) => s.concat(i.tools), []),
