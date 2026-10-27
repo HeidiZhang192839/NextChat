@@ -341,8 +341,11 @@ const en: LocaleType = {
         Title: "Edit Channel",
         Save: "Save",
         Name: "Channel Name",
+        Type: "API Type",
+        OpenAICompatible: "OpenAI compatible",
         Url: "Endpoint URL",
-        UrlSubTitle: "OpenAI-compatible, e.g. https://api.example.com",
+        UrlSubTitle: "Base URL of the API, without the request path",
+        ApiVersion: "API Version",
         ApiKey: "API Key",
         NameError: {
           empty: "Channel name is required",

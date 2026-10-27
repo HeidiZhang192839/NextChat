@@ -21,8 +21,11 @@ export async function handle(
     "x-base-url",
   )}/${subpath}?${req.nextUrl.searchParams.toString()}`;
   const skipHeaders = ["connection", "host", "origin", "referer", "cookie"];
+  // auth headers of anthropic and gemini channels
+  const keepHeaders = ["x-api-key", "x-goog-api-key"];
   const headers = new Headers(
     Array.from(req.headers.entries()).filter((item) => {
+      if (keepHeaders.includes(item[0])) return true;
       if (
         item[0].indexOf("x-") > -1 ||
         item[0].indexOf("sec-") > -1 ||
@@ -34,16 +37,16 @@ export async function handle(
     }),
   );
   // if dalle3 use openai api key
-    const baseUrl = req.headers.get("x-base-url");
-    if (baseUrl?.includes("api.openai.com")) {
-      if (!serverConfig.apiKey) {
-        return NextResponse.json(
-          { error: "OpenAI API key not configured" },
-          { status: 500 },
-        );
-      }
-      headers.set("Authorization", `Bearer ${serverConfig.apiKey}`);
+  const baseUrl = req.headers.get("x-base-url");
+  if (baseUrl?.includes("api.openai.com")) {
+    if (!serverConfig.apiKey) {
+      return NextResponse.json(
+        { error: "OpenAI API key not configured" },
+        { status: 500 },
+      );
     }
+    headers.set("Authorization", `Bearer ${serverConfig.apiKey}`);
+  }
 
   const controller = new AbortController();
   const fetchOptions: RequestInit = {

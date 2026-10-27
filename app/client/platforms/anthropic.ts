@@ -14,6 +14,7 @@ import { preProcessImageContent, stream } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 
 export type MultiBlockContent = {
   type: "image" | "text";
@@ -191,7 +192,18 @@ export class ClaudeApi implements LLMApi {
       top_k: 5,
     };
 
-    const path = this.path(Anthropic.ChatPath);
+    const channel = findChannel(
+      options.config.providerName ?? modelConfig.providerName,
+    );
+    const path = channel
+      ? channelPath(channel, Anthropic.ChatPath)
+      : this.path(Anthropic.ChatPath);
+    const headers = channel
+      ? channelHeaders(channel)
+      : {
+          ...getHeaders(),
+          "anthropic-version": accessStore.anthropicApiVersion,
+        };
 
     const controller = new AbortController();
     options.onController?.(controller);
@@ -206,10 +218,7 @@ export class ClaudeApi implements LLMApi {
       return stream(
         path,
         requestBody,
-        {
-          ...getHeaders(),
-          "anthropic-version": accessStore.anthropicApiVersion,
-        },
+        headers,
         // @ts-ignore
         tools.map((tool) => ({
           name: tool?.function?.name,
@@ -224,7 +233,11 @@ export class ClaudeApi implements LLMApi {
           let chunkJson:
             | undefined
             | {
-                type: "content_block_delta" | "content_block_stop" | "message_delta" | "message_stop";
+                type:
+                  | "content_block_delta"
+                  | "content_block_stop"
+                  | "message_delta"
+                  | "message_stop";
                 content_block?: {
                   type: "tool_use";
                   id: string;
@@ -243,8 +256,11 @@ export class ClaudeApi implements LLMApi {
           // Handle refusal stop reason in message_delta
           if (chunkJson?.delta?.stop_reason === "refusal") {
             // Return a message to display to the user
-            const refusalMessage = "\n\n[Assistant refused to respond. Please modify your request and try again.]";
-            options.onError?.(new Error("Content policy violation: " + refusalMessage));
+            const refusalMessage =
+              "\n\n[Assistant refused to respond. Please modify your request and try again.]";
+            options.onError?.(
+              new Error("Content policy violation: " + refusalMessage),
+            );
             return refusalMessage;
           }
 
@@ -317,12 +333,7 @@ export class ClaudeApi implements LLMApi {
         method: "POST",
         body: JSON.stringify(requestBody),
         signal: controller.signal,
-        headers: {
-          ...getHeaders(), // get common headers
-          "anthropic-version": accessStore.anthropicApiVersion,
-          // do not send `anthropicApiKey` in browser!!!
-          // Authorization: getAuthKey(accessStore.anthropicApiKey),
-        },
+        headers,
       };
 
       try {

@@ -28,6 +28,7 @@ import { preProcessImageContent } from "@/app/utils/chat";
 import { nanoid } from "nanoid";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 
 export class GeminiProApi implements LLMApi {
   path(path: string, shouldStream = false): string {
@@ -186,16 +187,23 @@ export class GeminiProApi implements LLMApi {
     options.onController?.(controller);
     try {
       // https://github.com/google-gemini/cookbook/blob/main/quickstarts/rest/Streaming_REST.ipynb
-      const chatPath = this.path(
-        Google.ChatPath(modelConfig.model),
-        shouldStream,
+      const channel = findChannel(
+        options.config.providerName ?? modelConfig.providerName,
       );
+      const chatPath = channel
+        ? channelPath(
+            channel,
+            Google.ChatPath(modelConfig.model) +
+              (shouldStream ? "?alt=sse" : ""),
+          )
+        : this.path(Google.ChatPath(modelConfig.model), shouldStream);
+      const headers = channel ? channelHeaders(channel) : getHeaders();
 
       const chatPayload = {
         method: "POST",
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        headers: getHeaders(),
+        headers,
       };
 
       const isThinking = options.config.model.includes("-thinking");
@@ -214,7 +222,7 @@ export class GeminiProApi implements LLMApi {
         return stream(
           chatPath,
           requestPayload,
-          getHeaders(),
+          headers,
           // @ts-ignore
           tools.length > 0
             ? // @ts-ignore

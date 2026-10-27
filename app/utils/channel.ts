@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS, ServiceProvider } from "../constant";
+import { Azure, DEFAULT_MODELS, ServiceProvider } from "../constant";
 import { Channel, useAppConfig } from "../store/config";
 import { getClientConfig } from "../config/client";
 
@@ -34,9 +34,21 @@ export function validateChannelName(
   return "";
 }
 
-// base url without trailing "/" or "/v1", like the openai endpoint setting
+export const AZURE_DEFAULT_API_VERSION = "2024-10-21";
+
+// base url without trailing "/" or "/v1", like the openai endpoint setting.
+// azure's "/openai" prefix goes in the base url, not the path:
+// next.config.mjs rewrites /api/proxy/openai/* to api.openai.com
 function channelBaseUrl(channel: Channel) {
-  return channel.url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+  const url = channel.url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+  return channel.type === "azure"
+    ? url.replace(/\/openai$/, "") + "/openai"
+    : url;
+}
+
+export function azureChannelPath(channel: Channel, deployment: string) {
+  const version = channel.apiVersion?.trim() || AZURE_DEFAULT_API_VERSION;
+  return Azure.ChatPath(deployment, version);
 }
 
 // the web app goes through the site proxy to avoid CORS
@@ -47,10 +59,17 @@ export function channelPath(channel: Channel, path: string) {
 }
 
 export function channelHeaders(channel: Channel): Record<string, string> {
+  const key = channel.apiKey.trim();
+  const auth: Record<string, string> = {
+    openai: { Authorization: `Bearer ${key}` },
+    azure: { "api-key": key },
+    anthropic: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+    google: { "x-goog-api-key": key },
+  }[channel.type ?? "openai"];
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
-    Authorization: `Bearer ${channel.apiKey.trim()}`,
+    ...auth,
     "X-Base-URL": channelBaseUrl(channel),
   };
 }

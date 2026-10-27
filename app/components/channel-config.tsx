@@ -23,19 +23,51 @@ import {
 } from "./ui-lib";
 import Locale from "../locales";
 import { useAccessStore, useAppConfig } from "../store";
-import { Channel } from "../store/config";
+import { Channel, ChannelType } from "../store/config";
 import { ApiPath, OPENAI_BASE_URL, OpenaiPath } from "../constant";
 import { getClientConfig } from "../config/client";
 import { collectModels } from "../utils/model";
 import { fetch } from "../utils/stream";
 import {
+  AZURE_DEFAULT_API_VERSION,
   channelHeaders,
   channelPath,
   validateChannelName,
 } from "../utils/channel";
 import { OpenAIListModelResponse } from "../client/platforms/openai";
 
+type GeminiListModelResponse = {
+  models: { name: string; supportedGenerationMethods?: string[] }[];
+};
+
 const DEFAULT_CHANNEL_ID = "default";
+
+const CHANNEL_TYPES: { type: ChannelType; label: () => string; url: string }[] =
+  [
+    {
+      type: "openai",
+      label: () => Locale.Settings.Channel.EditModal.OpenAICompatible,
+      url: "https://api.example.com",
+    },
+    {
+      type: "anthropic",
+      label: () => "Anthropic (Claude)",
+      url: "https://api.anthropic.com",
+    },
+    {
+      type: "google",
+      label: () => "Google Gemini",
+      url: "https://generativelanguage.googleapis.com",
+    },
+    {
+      type: "azure",
+      label: () => "Azure OpenAI",
+      url: "https://{resource}.openai.azure.com",
+    },
+  ];
+
+const channelTypeInfo = (channel: Channel) =>
+  CHANNEL_TYPES.find((t) => t.type === (channel.type ?? "openai"))!;
 const SITE_OPENAI_URL = getClientConfig()?.isApp
   ? OPENAI_BASE_URL
   : ApiPath.OpenAI;
@@ -172,6 +204,21 @@ function EditChannelModal(props: { channel: Channel; onClose: () => void }) {
               }
             ></input>
           </ListItem>
+          <ListItem title={Locale.Settings.Channel.EditModal.Type}>
+            <Select
+              aria-label={Locale.Settings.Channel.EditModal.Type}
+              value={draft.type ?? "openai"}
+              onChange={(e) =>
+                setDraft({ ...draft, type: e.target.value as ChannelType })
+              }
+            >
+              {CHANNEL_TYPES.map((t) => (
+                <option value={t.type} key={t.type}>
+                  {t.label()}
+                </option>
+              ))}
+            </Select>
+          </ListItem>
           <ListItem
             title={Locale.Settings.Channel.EditModal.Url}
             subTitle={Locale.Settings.Channel.EditModal.UrlSubTitle}
@@ -179,12 +226,24 @@ function EditChannelModal(props: { channel: Channel; onClose: () => void }) {
             <input
               type="text"
               value={draft.url}
-              placeholder="https://api.example.com"
+              placeholder={channelTypeInfo(draft).url}
               onChange={(e) =>
                 setDraft({ ...draft, url: e.currentTarget.value })
               }
             ></input>
           </ListItem>
+          {draft.type === "azure" && (
+            <ListItem title={Locale.Settings.Channel.EditModal.ApiVersion}>
+              <input
+                type="text"
+                value={draft.apiVersion ?? ""}
+                placeholder={AZURE_DEFAULT_API_VERSION}
+                onChange={(e) =>
+                  setDraft({ ...draft, apiVersion: e.currentTarget.value })
+                }
+              ></input>
+            </ListItem>
+          )}
           <ListItem title={Locale.Settings.Channel.EditModal.ApiKey}>
             <PasswordInput
               aria={Locale.Settings.Channel.EditModal.ApiKey}
@@ -360,16 +419,29 @@ function ChannelModels(props: { channel: Channel }) {
       if (c) c.models = models;
     });
 
+  const isGoogle = channel.type === "google";
   const fetchModels = async () => {
     setFetching(true);
     try {
-      const res = await fetch(channelPath(channel, OpenaiPath.ListModelPath), {
+      const path = isGoogle
+        ? "v1beta/models?pageSize=1000"
+        : OpenaiPath.ListModelPath; // anthropic uses the same path and shape
+      const res = await fetch(channelPath(channel, path), {
         method: "GET",
         headers: channelHeaders(channel),
       });
       if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-      const json = (await res.json()) as OpenAIListModelResponse;
-      setFetched(json.data.map((m) => m.id));
+      const json = await res.json();
+      setFetched(
+        isGoogle
+          ? (json as GeminiListModelResponse).models
+              .filter(
+                (m) =>
+                  m.supportedGenerationMethods?.includes("generateContent"),
+              )
+              .map((m) => m.name.replace(/^models\//, ""))
+          : (json as OpenAIListModelResponse).data.map((m) => m.id),
+      );
     } catch (e) {
       showToast(
         Locale.Settings.Channel.Models.FetchFailed((e as Error).message),
@@ -397,17 +469,20 @@ function ChannelModels(props: { channel: Channel }) {
       }
       onAdd={(name) => setModels(channel.models.concat(name))}
       actions={
-        <IconButton
-          icon={<DownloadIcon />}
-          text={
-            fetching
-              ? Locale.Settings.Channel.Models.Fetching
-              : Locale.Settings.Channel.Models.Fetch
-          }
-          bordered
-          disabled={fetching}
-          onClick={fetchModels}
-        />
+        // azure has no api to list deployments, they are typed in by name
+        channel.type === "azure" ? undefined : (
+          <IconButton
+            icon={<DownloadIcon />}
+            text={
+              fetching
+                ? Locale.Settings.Channel.Models.Fetching
+                : Locale.Settings.Channel.Models.Fetch
+            }
+            bordered
+            disabled={fetching}
+            onClick={fetchModels}
+          />
+        )
       }
     />
   );
@@ -460,6 +535,7 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
                 url: "",
                 apiKey: "",
                 models: [],
+                type: "openai",
               })
             }
           />,
@@ -501,7 +577,7 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
               {config.channels.map((c) => (
                 <ChannelRow
                   key={c.id}
-                  name={c.name}
+                  name={`${c.name} · ${channelTypeInfo(c).label()}`}
                   url={c.url}
                   onEdit={() => setEditingChannel(c)}
                   onDelete={() => deleteChannel(c)}

@@ -24,7 +24,12 @@ import {
   streamWithThink,
 } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
-import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
+import {
+  azureChannelPath,
+  channelHeaders,
+  channelPath,
+  findChannel,
+} from "@/app/utils/channel";
 import { ModelSize, DalleQuality, DalleStyle } from "@/app/typing";
 
 import {
@@ -269,7 +274,13 @@ export class ChatGPTApi implements LLMApi {
 
     try {
       let chatPath = "";
-      if (modelConfig.providerName === ServiceProvider.Azure) {
+      if (channel?.type === "azure") {
+        // azure channels use the model name as the deployment name
+        chatPath = channelPath(
+          channel,
+          azureChannelPath(channel, modelConfig.model),
+        );
+      } else if (modelConfig.providerName === ServiceProvider.Azure) {
         // find model, and get displayName as deployName
         const { models: configModels, customModels: configCustomModels } =
           useAppConfig.getState();

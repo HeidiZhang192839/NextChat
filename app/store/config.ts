@@ -30,13 +30,17 @@ export enum SubmitKey {
   MetaEnter = "Meta + Enter",
 }
 
-// an OpenAI-compatible endpoint added in 模型&渠道管理
+export type ChannelType = "openai" | "anthropic" | "google" | "azure";
+
+// an endpoint added in 模型&渠道管理
 export type Channel = {
   id: string;
   name: string;
   url: string;
   apiKey: string;
   models: string[];
+  type?: ChannelType; // missing on channels saved before types existed, means "openai"
+  apiVersion?: string; // azure only
 };
 
 export enum Theme {

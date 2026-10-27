@@ -25,6 +25,7 @@ import { XAIApi } from "./platforms/xai";
 import { ChatGLMApi } from "./platforms/glm";
 import { SiliconflowApi } from "./platforms/siliconflow";
 import { Ai302Api } from "./platforms/ai302";
+import { findChannel } from "../utils/channel";
 
 export const ROLES = ["system", "user", "assistant"] as const;
 export type MessageRole = (typeof ROLES)[number];
@@ -366,6 +367,12 @@ export function getHeaders(ignoreHeaders: boolean = false) {
 }
 
 export function getClientApi(provider: ServiceProvider): ClientApi {
+  switch (findChannel(provider)?.type) {
+    case "anthropic":
+      return new ClientApi(ModelProvider.Claude);
+    case "google":
+      return new ClientApi(ModelProvider.GeminiPro);
+  }
   switch (provider) {
     case ServiceProvider.Google:
       return new ClientApi(ModelProvider.GeminiPro);

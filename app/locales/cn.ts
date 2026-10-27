@@ -337,8 +337,11 @@ const cn = {
         Title: "编辑渠道",
         Save: "保存",
         Name: "渠道名称",
+        Type: "接口类型",
+        OpenAICompatible: "OpenAI 兼容",
         Url: "接口地址",
-        UrlSubTitle: "OpenAI 兼容接口，例如 https://api.example.com",
+        UrlSubTitle: "接口的基础地址，不含具体请求路径",
+        ApiVersion: "API 版本",
         ApiKey: "API Key",
         NameError: {
           empty: "渠道名称不能为空",
