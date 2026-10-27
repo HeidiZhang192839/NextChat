@@ -49,6 +49,8 @@ export type ModelCaps = {
   status: "testing" | "done" | "failed";
   vision?: boolean;
   pdf?: boolean;
+  // last request error, shown when hovering the tag
+  error?: string;
 };
 
 export enum Theme {

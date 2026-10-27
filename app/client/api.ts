@@ -254,7 +254,12 @@ export function validString(x: string): boolean {
   return x?.length > 0;
 }
 
-export function getHeaders(ignoreHeaders: boolean = false) {
+// providerName picks the api key, it defaults to the current chat's provider.
+// requests to another model (capability tests, image descriptions) must pass it
+export function getHeaders(
+  ignoreHeaders: boolean = false,
+  providerName?: string,
+) {
   const accessStore = useAccessStore.getState();
   const chatStore = useChatStore.getState();
   let headers: Record<string, string> = {};
@@ -268,7 +273,11 @@ export function getHeaders(ignoreHeaders: boolean = false) {
   const clientConfig = getClientConfig();
 
   function getConfig() {
-    const modelConfig = chatStore.currentSession().mask.modelConfig;
+    const modelConfig = {
+      providerName:
+        providerName ??
+        chatStore.currentSession().mask.modelConfig.providerName,
+    };
     const isGoogle = modelConfig.providerName === ServiceProvider.Google;
     const isAzure = modelConfig.providerName === ServiceProvider.Azure;
     const isAnthropic = modelConfig.providerName === ServiceProvider.Anthropic;

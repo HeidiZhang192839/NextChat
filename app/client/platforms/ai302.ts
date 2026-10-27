@@ -124,7 +124,7 @@ export class Ai302Api implements LLMApi {
         method: "POST",
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        headers: getHeaders(),
+        headers: getHeaders(false, options.config.providerName),
       };
 
       // console.log(chatPayload);
@@ -144,7 +144,7 @@ export class Ai302Api implements LLMApi {
         return streamWithThink(
           chatPath,
           requestPayload,
-          getHeaders(),
+          getHeaders(false, options.config.providerName),
           tools as any,
           funcs,
           controller,

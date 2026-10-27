@@ -278,7 +278,9 @@ export class ChatGPTApi implements LLMApi {
     options.onController?.(controller);
 
     const channel = findChannel(modelConfig.providerName);
-    const headers = channel ? channelHeaders(channel) : getHeaders();
+    const headers = channel
+      ? channelHeaders(channel)
+      : getHeaders(false, options.config.providerName);
 
     try {
       let chatPath = "";

@@ -92,15 +92,17 @@ export function capsFromReplies(
   image: string | null,
   pdf: string | null,
   plain: string | null,
+  error?: string,
 ): ModelCaps {
   // both attachment requests failed and so did plain text: the model can't be reached
   if (image === null && pdf === null && plain === null) {
-    return { status: "failed" };
+    return { status: "failed", error };
   }
   return {
     status: "done",
     vision: !!image?.includes(TEST_NUMBER),
     pdf: !!pdf?.toUpperCase().includes(TEST_WORD),
+    error,
   };
 }
 
@@ -108,8 +110,12 @@ export async function testModel(model: string, providerName: string) {
   const key = capsKey(model, providerName);
   // "testing" makes the client send attachments to this model whatever it is
   setCaps(key, { status: "testing" });
+  let error: string | undefined;
   const tryAsk = (content: RequestMessage["content"]) =>
-    askModel(model, providerName, content).catch(() => null);
+    askModel(model, providerName, content).catch((e: Error) => {
+      error = e.message;
+      return null;
+    });
 
   const image = await tryAsk([
     {
@@ -134,7 +140,7 @@ export async function testModel(model: string, providerName: string) {
   const plain =
     image === null && pdf === null ? await tryAsk("Reply with OK.") : "";
 
-  setCaps(key, capsFromReplies(image, pdf, plain));
+  setCaps(key, capsFromReplies(image, pdf, plain, error));
 }
 
 const queue: [string, string][] = [];

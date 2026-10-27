@@ -8,7 +8,9 @@ import { buildTestPdf, capsFromReplies } from "../app/utils/model-caps";
 import { prepareAttachments } from "../app/utils/attachments";
 import { isFileModel, isVisionModel } from "../app/utils";
 import { useAppConfig } from "../app/store/config";
-import { RequestMessage } from "../app/client/api";
+import { getHeaders, RequestMessage } from "../app/client/api";
+import { useAccessStore } from "../app/store/access";
+import { ServiceProvider } from "../app/constant";
 
 function officeFile(name: string, entries: Record<string, string>) {
   const zip = zipSync(
@@ -112,6 +114,20 @@ describe("model capability test", () => {
     expect(isVisionModel("new-model", "MyChannel")).toBe(true);
     // untested falls back to the name patterns
     expect(isVisionModel("gpt-4.1", "OpenAI")).toBe(true);
+  });
+});
+
+describe("getHeaders", () => {
+  test("uses the requested provider's key, not the current chat's", () => {
+    // the current chat uses OpenAI (the default session)
+    useAccessStore.setState({
+      openaiApiKey: "sk-openai",
+      anthropicApiKey: "sk-anthropic",
+    });
+    const headers = getHeaders(false, ServiceProvider.Anthropic);
+    expect(headers["x-api-key"]).toBe("sk-anthropic");
+    expect(headers["Authorization"]).toBeUndefined();
+    expect(getHeaders()["Authorization"]).toBe("Bearer sk-openai");
   });
 });
 

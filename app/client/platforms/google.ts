@@ -211,7 +211,9 @@ export class GeminiProApi implements LLMApi {
               (shouldStream ? "?alt=sse" : ""),
           )
         : this.path(Google.ChatPath(modelConfig.model), shouldStream);
-      const headers = channel ? channelHeaders(channel) : getHeaders();
+      const headers = channel
+        ? channelHeaders(channel)
+        : getHeaders(false, options.config.providerName);
 
       const chatPayload = {
         method: "POST",

@@ -28,6 +28,7 @@ import { ApiPath, OPENAI_BASE_URL, OpenaiPath } from "../constant";
 import { getClientConfig } from "../config/client";
 import { collectModels } from "../utils/model";
 import { capsLabel, queueModelTest } from "../utils/model-caps";
+import { getModelCaps } from "../utils";
 import { fetch } from "../utils/stream";
 import {
   AZURE_DEFAULT_API_VERSION,
@@ -368,7 +369,12 @@ function ModelChecklist(props: {
               {i.hint && <span className={styles["model-hint"]}>{i.hint}</span>}
               {i.checked && capsLabel(i.model, i.providerName) && (
                 <>
-                  <span className={styles["model-caps"]}>
+                  <span
+                    className={styles["model-caps"]}
+                    title={
+                      getModelCaps(i.model, i.providerName)?.error ?? undefined
+                    }
+                  >
                     {capsLabel(i.model, i.providerName)}
                   </span>
                   <span

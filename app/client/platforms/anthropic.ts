@@ -218,7 +218,7 @@ export class ClaudeApi implements LLMApi {
     const headers = channel
       ? channelHeaders(channel)
       : {
-          ...getHeaders(),
+          ...getHeaders(false, options.config.providerName),
           "anthropic-version": accessStore.anthropicApiVersion,
         };
 
