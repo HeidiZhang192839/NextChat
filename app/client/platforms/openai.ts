@@ -46,6 +46,7 @@ import { getClientConfig } from "@/app/config/client";
 import {
   getMessageTextContent,
   isVisionModel,
+  isFileModel,
   isDalle3 as _isDalle3,
   getTimeoutMSByModel,
 } from "@/app/utils";
@@ -221,11 +222,18 @@ export class ChatGPTApi implements LLMApi {
         style: options.config?.style ?? "vivid",
       };
     } else {
-      const visionModel = isVisionModel(options.config.model);
+      const visionModel = isVisionModel(
+        options.config.model,
+        options.config.providerName,
+      );
+      const fileModel = isFileModel(
+        options.config.model,
+        options.config.providerName,
+      );
       const messages: ChatOptions["messages"] = [];
       for (const v of options.messages) {
         const content = visionModel
-          ? await preProcessImageContent(v.content)
+          ? await preProcessImageContent(v.content, fileModel)
           : getMessageTextContent(v);
         if (!(isO1OrO3 && v.role === "system"))
           messages.push({ role: v.role, content });

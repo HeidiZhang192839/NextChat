@@ -154,7 +154,10 @@ export class ChatGLMApi implements LLMApi {
   }
 
   async chat(options: ChatOptions) {
-    const visionModel = isVisionModel(options.config.model);
+    const visionModel = isVisionModel(
+      options.config.model,
+      options.config.providerName,
+    );
     const messages: ChatOptions["messages"] = [];
     for (const v of options.messages) {
       const content = visionModel

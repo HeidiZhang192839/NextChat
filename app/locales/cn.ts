@@ -36,6 +36,8 @@ const cn = {
   },
   Chat: {
     SubTitle: (count: number) => `共 ${count} 条对话`,
+    FileTooLarge: (name: string) => `${name} 超过 10 MB，无法上传`,
+    FileReadFailed: (name: string) => `无法读取 ${name}`,
     Thinking: "思考过程 (点击展开)",
     Expand: "展开",
     Collapse: "收起",
@@ -86,6 +88,7 @@ const cn = {
       Clear: "清除聊天",
       Settings: "对话设置",
       UploadImage: "上传图片",
+      UploadFile: "上传图片或文件",
       Tools: "工具",
       WebSearch: "联网搜索",
     },
@@ -368,6 +371,16 @@ const cn = {
         Fetching: "获取中…",
         FetchFailed: (e: string) => `获取模型列表失败：${e}`,
         Empty: "暂无模型，输入模型名添加或从渠道获取",
+        Retest: "重新测试",
+        RetestAll: "全部重新测试",
+      },
+      Caps: {
+        Untested: "未测试",
+        Testing: "测试中…",
+        Failed: "测试失败",
+        Vision: "图片",
+        Pdf: "PDF",
+        TextOnly: "仅文本",
       },
     },
 
@@ -616,6 +629,12 @@ const cn = {
     CompressModel: {
       Title: "对话摘要模型",
       SubTitle: "用于压缩历史记录、生成对话标题的模型",
+    },
+    DescribeModel: {
+      Title: "图片描述模型",
+      SubTitle:
+        "为不支持图片的模型描述附带的图片，自动则使用第一个通过图片测试的模型",
+      Auto: "自动",
     },
     Temperature: {
       Title: "随机性 (temperature)",

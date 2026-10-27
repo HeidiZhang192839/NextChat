@@ -480,9 +480,12 @@ export const VISION_MODEL_REGEXES = [
   /gpt-4o/,
   /gpt-4\.1/,
   /claude.*[34]/,
+  /claude-[a-z]+-[5-9]/,
   /gemini-1\.5/,
   /gemini-exp/,
   /gemini-2\.[05]/,
+  /gemini-3/,
+  /gpt-5/,
   /learnlm/,
   /qwen-vl/,
   /qwen2-vl/,
@@ -496,6 +499,21 @@ export const VISION_MODEL_REGEXES = [
 ];
 
 export const EXCLUDE_VISION_MODEL_REGEXES = [/claude-3-5-haiku-20241022/];
+
+// models that accept pdf files natively
+export const FILE_MODEL_REGEXES = [
+  /claude-3[-.][57]-sonnet/,
+  /claude-[a-z]+-[4-9]/,
+  /gemini-(1\.5|2|3)/,
+  /gpt-4o/,
+  /gpt-4\.1/,
+  /gpt-5/,
+  /^o[34]/,
+];
+// providers / channel types whose adapters send pdf files
+export const FILE_MODEL_PROVIDERS = ["openai", "anthropic", "google"];
+// keep requests under the providers' size limits
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const openaiModels = [
   // As of July 2024, gpt-4o-mini should be used in place of gpt-3.5-turbo,
@@ -555,7 +573,7 @@ const googleModels = [
   "gemini-2.0-pro-exp",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.5-pro-preview-06-05",
-  "gemini-2.5-pro"
+  "gemini-2.5-pro",
 ];
 
 const anthropicModels = [

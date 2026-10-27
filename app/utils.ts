@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { showToast } from "./components/ui-lib";
 import Locale from "./locales";
-import { RequestMessage } from "./client/api";
+import { FileContent, RequestMessage } from "./client/api";
 import {
   REQUEST_TIMEOUT_MS,
   REQUEST_TIMEOUT_MS_FOR_THINKING,
 } from "./constant";
 // import { fetch as tauriFetch, ResponseType } from "@tauri-apps/api/http";
 import { fetch as tauriStreamFetch } from "./utils/stream";
-import { VISION_MODEL_REGEXES, EXCLUDE_VISION_MODEL_REGEXES } from "./constant";
-import { useAccessStore } from "./store";
+import {
+  VISION_MODEL_REGEXES,
+  EXCLUDE_VISION_MODEL_REGEXES,
+  FILE_MODEL_REGEXES,
+  FILE_MODEL_PROVIDERS,
+} from "./constant";
+import { useAccessStore, useAppConfig } from "./store";
+import { findChannel } from "./utils/channel";
 import { ModelSize } from "./typing";
 
 export function trimTopic(topic: string) {
@@ -279,7 +285,41 @@ export function getMessageImages(message: RequestMessage): string[] {
   return urls;
 }
 
-export function isVisionModel(model: string) {
+export function getMessageFiles(message: RequestMessage): FileContent[] {
+  if (typeof message.content === "string") {
+    return [];
+  }
+  return message.content
+    .filter((c) => c.type === "file" && c.file)
+    .map((c) => c.file!);
+}
+
+export function getModelCaps(model: string, providerName?: string) {
+  return useAppConfig.getState().modelCaps?.[`${model}@${providerName}`];
+}
+
+// whether pdf files can be sent natively to this model.
+// tested results win, models under test are treated as capable so the test reaches them
+export function isFileModel(model: string, providerName?: string) {
+  const caps = getModelCaps(model, providerName);
+  if (caps?.status === "testing") return true;
+  if (caps?.status === "done") return !!caps.pdf;
+
+  const channel = findChannel(providerName);
+  const provider = channel
+    ? channel.type ?? "openai"
+    : providerName?.toLowerCase();
+  return (
+    FILE_MODEL_PROVIDERS.includes(provider ?? "") &&
+    FILE_MODEL_REGEXES.some((regex) => regex.test(model))
+  );
+}
+
+export function isVisionModel(model: string, providerName?: string) {
+  const caps = getModelCaps(model, providerName);
+  if (caps?.status === "testing") return true;
+  if (caps?.status === "done") return !!caps.vision;
+
   const visionModels = useAccessStore.getState().visionModels;
   const envVisionModels = visionModels?.split(",").map((m) => m.trim());
   if (envVisionModels?.includes(model)) {

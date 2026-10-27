@@ -21,6 +21,8 @@ import { GEMINI_BASE_URL } from "@/app/constant";
 import {
   getMessageTextContent,
   getMessageImages,
+  getMessageFiles,
+  isFileModel,
   isVisionModel,
   getTimeoutMSByModel,
 } from "@/app/utils";
@@ -101,7 +103,7 @@ export class GeminiProApi implements LLMApi {
     }
     const messages = _messages.map((v) => {
       let parts: any[] = [{ text: getMessageTextContent(v) }];
-      if (isVisionModel(options.config.model)) {
+      if (isVisionModel(options.config.model, options.config.providerName)) {
         const images = getMessageImages(v);
         if (images.length > 0) {
           multimodal = true;
@@ -118,6 +120,18 @@ export class GeminiProApi implements LLMApi {
             }),
           );
         }
+      }
+      if (isFileModel(options.config.model, options.config.providerName)) {
+        parts = parts.concat(
+          getMessageFiles(v)
+            .filter((file) => file.file_data)
+            .map((file) => ({
+              inline_data: {
+                mime_type: "application/pdf",
+                data: file.file_data!.split(",")[1],
+              },
+            })),
+        );
       }
       return {
         role: v.role.replace("assistant", "model").replace("system", "user"),

@@ -30,6 +30,7 @@ import { type ClientApi, getClientApi } from "../client/api";
 import { useAccessStore } from "../store";
 import clsx from "clsx";
 import { initializeMcpSystem, isMcpEnabled } from "../mcp/actions";
+import { useModelCapsTesting } from "../utils/model-caps";
 
 export function Loading(props: { noLogo?: boolean }) {
   return (
@@ -169,6 +170,8 @@ function Screen() {
   const isMobileScreen = useMobileScreen();
   const shouldTightBorder =
     getClientConfig()?.isApp || (config.tightBorder && !isMobileScreen);
+
+  useModelCapsTesting();
 
   useEffect(() => {
     loadAsyncGoogleFont();

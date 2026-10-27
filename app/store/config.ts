@@ -43,6 +43,14 @@ export type Channel = {
   apiVersion?: string; // azure only
 };
 
+// result of sending a model a test image and pdf.
+// "failed" means even plain text requests failed, so nothing is known
+export type ModelCaps = {
+  status: "testing" | "done" | "failed";
+  vision?: boolean;
+  pdf?: boolean;
+};
+
 export enum Theme {
   Auto = "auto",
   Dark = "dark",
@@ -77,6 +85,11 @@ export const DEFAULT_CONFIG = {
   customModels: "",
   models: DEFAULT_MODELS as any as LLMModel[],
   channels: [] as Channel[],
+  // tested capabilities by "model@providerName"
+  modelCaps: {} as Record<string, ModelCaps>,
+  // describes images for models that can't see them, empty means first vision model
+  describeModel: "",
+  describeProviderName: "",
 
   modelConfig: {
     model: "gpt-4o-mini" as ModelType,

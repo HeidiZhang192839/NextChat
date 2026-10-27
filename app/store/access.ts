@@ -148,6 +148,8 @@ const DEFAULT_ACCESS_STATE = {
   customModels: "",
   defaultModel: "",
   visionModels: "",
+  // /api/config has answered at least once, so customModels above are the site's
+  serverConfigLoaded: false,
 
   // tts config
   edgeTTSVoiceName: "zh-CN-YunxiNeural",
@@ -279,6 +281,7 @@ export const useAccessStore = createPersistStore(
         })
         .finally(() => {
           fetchState = 2;
+          set(() => ({ serverConfigLoaded: true }));
         });
     },
   }),

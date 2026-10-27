@@ -9,6 +9,7 @@ import { indexedDBStorage } from "@/app/utils/indexedDB-storage";
 import { nanoid } from "nanoid";
 import type {
   ClientApi,
+  FileContent,
   MultimodalContent,
   RequestMessage,
 } from "../client/api";
@@ -31,6 +32,7 @@ import {
 import Locale, { getLang } from "../locales";
 import { prettyObject } from "../utils/format";
 import { createPersistStore } from "../utils/store";
+import { prepareAttachments } from "../utils/attachments";
 import { estimateTokenLength } from "../utils/token";
 import { ModelConfig, ModelType, useAppConfig } from "./config";
 import { useAccessStore } from "./access";
@@ -448,6 +450,7 @@ export const useChatStore = createPersistStore(
         content: string,
         attachImages?: string[],
         isMcpResponse?: boolean,
+        attachFiles?: FileContent[],
       ) {
         const session = get().currentSession();
         const modelConfig = session.mask.modelConfig;
@@ -457,12 +460,20 @@ export const useChatStore = createPersistStore(
           ? content
           : fillTemplateWith(content, modelConfig);
 
-        if (!isMcpResponse && attachImages && attachImages.length > 0) {
+        if (
+          !isMcpResponse &&
+          ((attachImages && attachImages.length > 0) ||
+            (attachFiles && attachFiles.length > 0))
+        ) {
           mContent = [
             ...(content ? [{ type: "text" as const, text: content }] : []),
-            ...attachImages.map((url) => ({
+            ...(attachImages ?? []).map((url) => ({
               type: "image_url" as const,
               image_url: { url },
+            })),
+            ...(attachFiles ?? []).map((file) => ({
+              type: "file" as const,
+              file,
             })),
           ];
         }
@@ -499,7 +510,11 @@ export const useChatStore = createPersistStore(
         const api: ClientApi = getClientApi(modelConfig.providerName);
         // make request
         api.llm.chat({
-          messages: sendMessages,
+          messages: await prepareAttachments(
+            sendMessages,
+            modelConfig.model,
+            modelConfig.providerName,
+          ),
           config: { ...modelConfig, stream: true },
           onUpdate(message) {
             botMessage.streaming = true;

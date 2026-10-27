@@ -74,9 +74,20 @@ export function compressImage(file: Blob, maxSize: number): Promise<string> {
   });
 }
 
+export function readFileAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// file parts are dropped unless keepFiles, so models without pdf support never see them
 export async function preProcessImageContentBase(
   content: RequestMessage["content"],
   transformImageUrl: (url: string) => Promise<{ [key: string]: any }>,
+  keepFiles = false,
 ) {
   if (typeof content === "string") {
     return content;
@@ -90,6 +101,11 @@ export async function preProcessImageContentBase(
       } catch (error) {
         console.error("Error processing image URL:", error);
       }
+    } else if (part?.type === "file") {
+      const { filename, file_data } = part.file ?? {};
+      if (keepFiles && file_data) {
+        result.push({ type: "file", file: { filename, file_data } });
+      }
     } else {
       result.push({ ...part });
     }
@@ -99,11 +115,16 @@ export async function preProcessImageContentBase(
 
 export async function preProcessImageContent(
   content: RequestMessage["content"],
+  keepFiles = false,
 ) {
-  return preProcessImageContentBase(content, async (url) => ({
-    type: "image_url",
-    image_url: { url },
-  })) as Promise<MultimodalContent[] | string>;
+  return preProcessImageContentBase(
+    content,
+    async (url) => ({
+      type: "image_url",
+      image_url: { url },
+    }),
+    keepFiles,
+  ) as Promise<MultimodalContent[] | string>;
 }
 
 export async function preProcessImageContentForAlibabaDashScope(

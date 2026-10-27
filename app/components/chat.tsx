@@ -66,10 +66,10 @@ import {
 import {
   autoGrowTextArea,
   copyToClipboard,
+  getMessageFiles,
   getMessageImages,
   getMessageTextContent,
   isDalle3,
-  isVisionModel,
   safeLocalStorage,
   getModelSizes,
   supportsCustomSize,
@@ -77,7 +77,17 @@ import {
   selectOrCopy,
 } from "../utils";
 
-import { uploadImage as uploadImageRemote } from "@/app/utils/chat";
+import {
+  readFileAsDataUrl,
+  uploadImage as uploadImageRemote,
+} from "@/app/utils/chat";
+import {
+  DOCUMENT_ACCEPT,
+  extractFileText,
+  isDocumentFile,
+  isPdfFile,
+} from "@/app/utils/file-text";
+import { capsLabel } from "@/app/utils/model-caps";
 
 import dynamic from "next/dynamic";
 
@@ -102,6 +112,7 @@ import { useNavigate } from "react-router-dom";
 import {
   CHAT_PAGE_SIZE,
   DEFAULT_TTS_ENGINE,
+  MAX_FILE_BYTES,
   ModelProvider,
   Path,
   REQUEST_TIMEOUT_MS,
@@ -116,7 +127,7 @@ import { prettyObject } from "../utils/format";
 import { ExportMessageModal } from "./exporter";
 import { getClientConfig } from "../config/client";
 import { useAllModels } from "../utils/hooks";
-import { ClientApi, MultimodalContent } from "../client/api";
+import { ClientApi, FileContent, MultimodalContent } from "../client/api";
 import { createTTSPlayer } from "../utils/audio";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "../utils/ms_edge_tts";
 
@@ -493,8 +504,6 @@ function useScrollToBottom(
 
 export function ChatActions(props: {
   uploadImage: () => void;
-  setAttachImages: (images: string[]) => void;
-  setUploading: (uploading: boolean) => void;
   showPromptModal: () => void;
   scrollToBottom: () => void;
   showPromptHints: () => void;
@@ -554,7 +563,6 @@ export function ChatActions(props: {
   }, [models, currentModel, currentProviderName]);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showPluginSelector, setShowPluginSelector] = useState(false);
-  const [showUploadImage, setShowUploadImage] = useState(false);
 
   const [showSizeSelector, setShowSizeSelector] = useState(false);
   const [showQualitySelector, setShowQualitySelector] = useState(false);
@@ -570,13 +578,6 @@ export function ChatActions(props: {
   const isMobileScreen = useMobileScreen();
 
   useEffect(() => {
-    const show = isVisionModel(currentModel);
-    setShowUploadImage(show);
-    if (!show) {
-      props.setAttachImages([]);
-      props.setUploading(false);
-    }
-
     // if current model is not available
     // switch to first available model
     const isUnavailableModel = !models.some((m) => m.name === currentModel);
@@ -621,13 +622,11 @@ export function ChatActions(props: {
           />
         )}
 
-        {showUploadImage && (
-          <ChatAction
-            onClick={props.uploadImage}
-            text={Locale.Chat.InputActions.UploadImage}
-            icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
-          />
-        )}
+        <ChatAction
+          onClick={props.uploadImage}
+          text={Locale.Chat.InputActions.UploadFile}
+          icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
+        />
         <ChatAction
           onClick={nextTheme}
           text={Locale.Chat.InputActions.Theme[theme]}
@@ -688,6 +687,7 @@ export function ChatActions(props: {
                   ? " (" + m?.provider?.providerName + ")"
                   : ""
               }`,
+              subTitle: capsLabel(m.name, m?.provider?.providerName),
               value: `${m.name}@${m?.provider?.providerName}`,
             }))}
             onClose={() => setShowModelSelector(false)}
@@ -1030,6 +1030,7 @@ function _Chat() {
   const isMobileScreen = useMobileScreen();
   const navigate = useNavigate();
   const [attachImages, setAttachImages] = useState<string[]>([]);
+  const [attachFiles, setAttachFiles] = useState<FileContent[]>([]);
   const [uploading, setUploading] = useState(false);
 
   // prompt hints
@@ -1101,7 +1102,12 @@ function _Chat() {
   };
 
   const doSubmit = (userInput: string) => {
-    if (userInput.trim() === "" && isEmpty(attachImages)) return;
+    if (
+      userInput.trim() === "" &&
+      isEmpty(attachImages) &&
+      isEmpty(attachFiles)
+    )
+      return;
     const matchCommand = chatCommands.match(userInput);
     if (matchCommand.matched) {
       setUserInput("");
@@ -1111,9 +1117,10 @@ function _Chat() {
     }
     setIsLoading(true);
     chatStore
-      .onUserInput(userInput, attachImages)
+      .onUserInput(userInput, attachImages, false, attachFiles)
       .then(() => setIsLoading(false));
     setAttachImages([]);
+    setAttachFiles([]);
     chatStore.setLastInput(userInput);
     setUserInput("");
     setPromptHints([]);
@@ -1264,7 +1271,10 @@ function _Chat() {
     setIsLoading(true);
     const textContent = getMessageTextContent(userMessage);
     const images = getMessageImages(userMessage);
-    chatStore.onUserInput(textContent, images).then(() => setIsLoading(false));
+    const files = getMessageFiles(userMessage);
+    chatStore
+      .onUserInput(textContent, images, false, files)
+      .then(() => setIsLoading(false));
     inputRef.current?.focus();
   };
 
@@ -1510,92 +1520,67 @@ function _Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePaste = useCallback(
-    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const currentModel = chatStore.currentSession().mask.modelConfig.model;
-      if (!isVisionModel(currentModel)) {
-        return;
-      }
-      const items = (event.clipboardData || window.clipboardData).items;
-      for (const item of items) {
-        if (item.kind === "file" && item.type.startsWith("image/")) {
-          event.preventDefault();
-          const file = item.getAsFile();
-          if (file) {
-            const images: string[] = [];
-            images.push(...attachImages);
-            images.push(
-              ...(await new Promise<string[]>((res, rej) => {
-                setUploading(true);
-                const imagesData: string[] = [];
-                uploadImageRemote(file)
-                  .then((dataUrl) => {
-                    imagesData.push(dataUrl);
-                    setUploading(false);
-                    res(imagesData);
-                  })
-                  .catch((e) => {
-                    setUploading(false);
-                    rej(e);
-                  });
-              })),
-            );
-            const imagesLength = images.length;
+  // any model takes any attachment: what it can't read natively is sent as text
+  function filterAttachable(files: File[]) {
+    return {
+      images: files.filter((f) => f.type.startsWith("image/")),
+      documents: files.filter(isDocumentFile),
+    };
+  }
 
-            if (imagesLength > 3) {
-              images.splice(3, imagesLength - 3);
-            }
-            setAttachImages(images);
-          }
+  async function addAttachments(images: File[], documents: File[]) {
+    setUploading(true);
+    try {
+      const imageUrls = await Promise.all(images.map(uploadImageRemote));
+      setAttachImages((prev) => [...prev, ...imageUrls].slice(0, 3));
+
+      const files: FileContent[] = [];
+      for (const file of documents) {
+        if (file.size > MAX_FILE_BYTES) {
+          showToast(Locale.Chat.FileTooLarge(file.name));
+          continue;
+        }
+        try {
+          files.push({
+            filename: file.name,
+            // pdfs are also kept whole for models that read them natively
+            file_data: isPdfFile(file)
+              ? await readFileAsDataUrl(file)
+              : undefined,
+            text: await extractFileText(file),
+          });
+        } catch (e) {
+          console.error("[Chat] failed to read file", e);
+          showToast(Locale.Chat.FileReadFailed(file.name));
         }
       }
-    },
-    [attachImages, chatStore],
-  );
-
-  async function uploadImage() {
-    const images: string[] = [];
-    images.push(...attachImages);
-
-    images.push(
-      ...(await new Promise<string[]>((res, rej) => {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept =
-          "image/png, image/jpeg, image/webp, image/heic, image/heif";
-        fileInput.multiple = true;
-        fileInput.onchange = (event: any) => {
-          setUploading(true);
-          const files = event.target.files;
-          const imagesData: string[] = [];
-          for (let i = 0; i < files.length; i++) {
-            const file = event.target.files[i];
-            uploadImageRemote(file)
-              .then((dataUrl) => {
-                imagesData.push(dataUrl);
-                if (
-                  imagesData.length === 3 ||
-                  imagesData.length === files.length
-                ) {
-                  setUploading(false);
-                  res(imagesData);
-                }
-              })
-              .catch((e) => {
-                setUploading(false);
-                rej(e);
-              });
-          }
-        };
-        fileInput.click();
-      })),
-    );
-
-    const imagesLength = images.length;
-    if (imagesLength > 3) {
-      images.splice(3, imagesLength - 3);
+      setAttachFiles((prev) => [...prev, ...files].slice(0, 3));
+    } finally {
+      setUploading(false);
     }
-    setAttachImages(images);
+  }
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const { images, documents } = filterAttachable(
+      Array.from(event.clipboardData.files),
+    );
+    if (images.length === 0 && documents.length === 0) return;
+    event.preventDefault();
+    addAttachments(images, documents);
+  };
+
+  function uploadImage() {
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = `image/png, image/jpeg, image/webp, image/heic, image/heif,${DOCUMENT_ACCEPT}`;
+    fileInput.multiple = true;
+    fileInput.onchange = (event: any) => {
+      const { images, documents } = filterAttachable(
+        Array.from(event.target.files),
+      );
+      addAttachments(images, documents);
+    };
+    fileInput.click();
   }
 
   // 快捷键 shortcut keys
@@ -1822,7 +1807,8 @@ function _Chat() {
                                       | string
                                       | MultimodalContent[] = newMessage;
                                     const images = getMessageImages(message);
-                                    if (images.length > 0) {
+                                    const files = getMessageFiles(message);
+                                    if (images.length > 0 || files.length > 0) {
                                       newContent = [
                                         { type: "text", text: newMessage },
                                       ];
@@ -1833,6 +1819,9 @@ function _Chat() {
                                             url: images[i],
                                           },
                                         });
+                                      }
+                                      for (const file of files) {
+                                        newContent.push({ type: "file", file });
                                       }
                                     }
                                     chatStore.updateTargetSession(
@@ -2024,6 +2013,14 @@ function _Chat() {
                                 )}
                               </div>
                             )}
+                            {getMessageFiles(message).map((file, index) => (
+                              <div
+                                key={index}
+                                className={styles["chat-message-item-file"]}
+                              >
+                                {file.filename}
+                              </div>
+                            ))}
                           </div>
                           {message?.audio_url && (
                             <div className={styles["chat-message-audio"]}>
@@ -2051,8 +2048,6 @@ function _Chat() {
 
               <ChatActions
                 uploadImage={uploadImage}
-                setAttachImages={setAttachImages}
-                setUploading={setUploading}
                 showPromptModal={() => setShowPromptModal(true)}
                 scrollToBottom={scrollToBottom}
                 hitBottom={hitBottom}
@@ -2075,7 +2070,7 @@ function _Chat() {
               <label
                 className={clsx(styles["chat-input-panel-inner"], {
                   [styles["chat-input-panel-inner-attach"]]:
-                    attachImages.length !== 0,
+                    attachImages.length !== 0 || attachFiles.length !== 0,
                 })}
                 htmlFor="chat-input"
               >
@@ -2097,7 +2092,7 @@ function _Chat() {
                     fontFamily: config.fontFamily,
                   }}
                 />
-                {attachImages.length != 0 && (
+                {(attachImages.length != 0 || attachFiles.length != 0) && (
                   <div className={styles["attach-images"]}>
                     {attachImages.map((image, index) => {
                       return (
@@ -2118,6 +2113,29 @@ function _Chat() {
                         </div>
                       );
                     })}
+                    {attachFiles.map((file, index) => (
+                      <div
+                        key={`file-${index}`}
+                        className={clsx(
+                          styles["attach-image"],
+                          styles["attach-file"],
+                        )}
+                        title={file.filename}
+                      >
+                        <div className={styles["attach-file-name"]}>
+                          {file.filename}
+                        </div>
+                        <div className={styles["attach-image-mask"]}>
+                          <DeleteImageButton
+                            deleteImage={() => {
+                              setAttachFiles(
+                                attachFiles.filter((_, i) => i !== index),
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <IconButton

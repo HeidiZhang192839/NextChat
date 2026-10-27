@@ -71,6 +71,9 @@ import { ProviderType } from "../utils/cloud";
 import { TTSConfigList } from "./tts-config";
 import { RealtimeConfigList } from "./realtime-chat/realtime-config";
 import { ChannelConfigModal } from "./channel-config";
+import { useAllModels } from "../utils/hooks";
+import { getModelProvider } from "../utils/model";
+import { capsLabel } from "../utils/model-caps";
 
 function EditPromptModal(props: { id: string; onClose: () => void }) {
   const promptStore = usePromptStore();
@@ -568,6 +571,7 @@ export function Settings() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const config = useAppConfig();
   const updateConfig = config.update;
+  const allModels = useAllModels();
 
   const updateStore = useUpdateStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -886,6 +890,43 @@ export function Settings() {
                 )
               }
             ></input>
+          </ListItem>
+
+          <ListItem
+            title={Locale.Settings.DescribeModel.Title}
+            subTitle={Locale.Settings.DescribeModel.SubTitle}
+          >
+            <Select
+              aria-label={Locale.Settings.DescribeModel.Title}
+              value={
+                config.describeModel
+                  ? `${config.describeModel}@${config.describeProviderName}`
+                  : ""
+              }
+              onChange={(e) => {
+                const [model, providerName] = e.currentTarget.value
+                  ? getModelProvider(e.currentTarget.value)
+                  : ["", ""];
+                updateConfig((config) => {
+                  config.describeModel = model;
+                  config.describeProviderName = providerName ?? "";
+                });
+              }}
+            >
+              <option value="">{Locale.Settings.DescribeModel.Auto}</option>
+              {allModels
+                .filter((m) => m.available)
+                .map((m) => (
+                  <option
+                    value={`${m.name}@${m.provider?.providerName}`}
+                    key={`${m.name}@${m.provider?.providerName}`}
+                  >
+                    {m.displayName}({m.provider?.providerName})
+                    {capsLabel(m.name, m.provider?.providerName) &&
+                      ` · ${capsLabel(m.name, m.provider?.providerName)}`}
+                  </option>
+                ))}
+            </Select>
           </ListItem>
 
           <ListItem

@@ -37,6 +37,8 @@ const en: LocaleType = {
   },
   Chat: {
     SubTitle: (count: number) => `${count} messages`,
+    FileTooLarge: (name: string) => `${name} is larger than 10 MB`,
+    FileReadFailed: (name: string) => `Could not read ${name}`,
     Thinking: "Thinking (click to expand)",
     Expand: "Expand",
     Collapse: "Collapse",
@@ -87,6 +89,7 @@ const en: LocaleType = {
       Clear: "Clear Context",
       Settings: "Settings",
       UploadImage: "Upload Images",
+      UploadFile: "Upload Images or Files",
       Tools: "Tools",
       WebSearch: "Web Search",
     },
@@ -373,6 +376,16 @@ const en: LocaleType = {
         Fetching: "Fetching…",
         FetchFailed: (e: string) => `Failed to fetch models: ${e}`,
         Empty: "No models yet. Type a name to add, or fetch from the channel",
+        Retest: "Re-test",
+        RetestAll: "Re-test all",
+      },
+      Caps: {
+        Untested: "Not tested",
+        Testing: "Testing…",
+        Failed: "Test failed",
+        Vision: "Images",
+        Pdf: "PDF",
+        TextOnly: "Text only",
       },
     },
     Access: {
@@ -622,6 +635,12 @@ const en: LocaleType = {
     CompressModel: {
       Title: "Summary Model",
       SubTitle: "Model used to compress history and generate title",
+    },
+    DescribeModel: {
+      Title: "Image Description Model",
+      SubTitle:
+        "Describes attached images for models that can't see them. Auto uses the first model that passed the image test",
+      Auto: "Auto",
     },
     Temperature: {
       Title: "Temperature",

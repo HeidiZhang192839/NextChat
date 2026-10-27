@@ -34,12 +34,24 @@ export const Models = ["gpt-3.5-turbo", "gpt-4"] as const;
 export const TTSModels = ["tts-1", "tts-1-hd"] as const;
 export type ChatModel = ModelType;
 
+// an attached document. pdfs keep the file itself for models that read pdfs natively,
+// every document keeps its extracted text for the rest
+export interface FileContent {
+  filename: string;
+  // pdf data url
+  file_data?: string;
+  text?: string;
+}
+
 export interface MultimodalContent {
-  type: "text" | "image_url";
+  type: "text" | "image_url" | "file";
   text?: string;
   image_url?: {
     url: string;
+    // saved text description, used for models that can't see images
+    description?: string;
   };
+  file?: FileContent;
 }
 
 export interface MultimodalContentForAlibaba {

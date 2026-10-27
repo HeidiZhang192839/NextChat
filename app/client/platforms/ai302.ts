@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ApiPath,
-  AI302_BASE_URL,
-  DEFAULT_MODELS,
-  AI302,
-} from "@/app/constant";
+import { ApiPath, AI302_BASE_URL, DEFAULT_MODELS, AI302 } from "@/app/constant";
 import {
   useAccessStore,
   useAppConfig,
@@ -61,10 +56,7 @@ export class Ai302Api implements LLMApi {
     if (baseUrl.endsWith("/")) {
       baseUrl = baseUrl.slice(0, baseUrl.length - 1);
     }
-    if (
-      !baseUrl.startsWith("http") &&
-      !baseUrl.startsWith(ApiPath["302.AI"])
-    ) {
+    if (!baseUrl.startsWith("http") && !baseUrl.startsWith(ApiPath["302.AI"])) {
       baseUrl = "https://" + baseUrl;
     }
 
@@ -82,7 +74,10 @@ export class Ai302Api implements LLMApi {
   }
 
   async chat(options: ChatOptions) {
-    const visionModel = isVisionModel(options.config.model);
+    const visionModel = isVisionModel(
+      options.config.model,
+      options.config.providerName,
+    );
     const messages: ChatOptions["messages"] = [];
     for (const v of options.messages) {
       if (v.role === "assistant") {

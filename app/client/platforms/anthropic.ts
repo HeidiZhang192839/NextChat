@@ -9,7 +9,7 @@ import {
 } from "@/app/store";
 import { getClientConfig } from "@/app/config/client";
 import { ANTHROPIC_BASE_URL } from "@/app/constant";
-import { getMessageTextContent, isVisionModel } from "@/app/utils";
+import { getMessageTextContent, isFileModel, isVisionModel } from "@/app/utils";
 import { preProcessImageContent, stream } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { RequestPayload } from "./openai";
@@ -17,7 +17,7 @@ import { fetch } from "@/app/utils/stream";
 import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 
 export type MultiBlockContent = {
-  type: "image" | "text";
+  type: "image" | "text" | "document";
   source?: {
     type: string;
     media_type: string;
@@ -85,7 +85,10 @@ export class ClaudeApi implements LLMApi {
     return res?.content?.[0]?.text;
   }
   async chat(options: ChatOptions): Promise<void> {
-    const visionModel = isVisionModel(options.config.model);
+    const visionModel = isVisionModel(
+      options.config.model,
+      options.config.providerName,
+    );
 
     const accessStore = useAccessStore.getState();
 
@@ -101,8 +104,12 @@ export class ClaudeApi implements LLMApi {
 
     // try get base64image from local cache image_url
     const messages: ChatOptions["messages"] = [];
+    const fileModel = isFileModel(
+      options.config.model,
+      options.config.providerName,
+    );
     for (const v of options.messages) {
-      const content = await preProcessImageContent(v.content);
+      const content = await preProcessImageContent(v.content, fileModel);
       messages.push({ role: v.role, content });
     }
 
@@ -144,12 +151,22 @@ export class ClaudeApi implements LLMApi {
         return {
           role: insideRole,
           content: content
-            .filter((v) => v.image_url || v.text)
-            .map(({ type, text, image_url }) => {
+            .filter((v) => v.image_url || v.text || v.file)
+            .map(({ type, text, image_url, file }) => {
               if (type === "text") {
                 return {
                   type,
                   text: text!,
+                };
+              }
+              if (type === "file") {
+                return {
+                  type: "document" as const,
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: file!.file_data!.split(",")[1],
+                  },
                 };
               }
               const { url = "" } = image_url || {};

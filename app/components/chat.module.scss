@@ -42,6 +42,23 @@
   }
 }
 
+.attach-file {
+  position: relative;
+
+  .attach-file-name {
+    position: absolute;
+    inset: 4px;
+    font-size: 11px;
+    line-height: 1.3;
+    overflow: hidden;
+    word-break: break-all;
+  }
+
+  .attach-image-mask {
+    position: relative;
+  }
+}
+
 .chat-input-actions {
   display: flex;
   flex-wrap: wrap;
@@ -471,6 +488,15 @@
 .chat-message-item-image {
   width: 100%;
   margin-top: 10px;
+}
+
+.chat-message-item-file {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: rgba($color: #888, $alpha: 0.3) 1px solid;
+  border-radius: 5px;
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .chat-message-item-images {

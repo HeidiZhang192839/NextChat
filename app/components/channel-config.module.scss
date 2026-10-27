@@ -89,6 +89,22 @@
       font-size: 12px;
       opacity: 0.6;
     }
+    .model-caps {
+      font-size: 12px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: var(--border-in-light);
+      white-space: nowrap;
+    }
+    .model-retest {
+      display: flex;
+      cursor: pointer;
+      opacity: 0.5;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
   }
 
   .empty {

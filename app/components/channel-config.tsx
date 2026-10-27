@@ -27,6 +27,7 @@ import { Channel, ChannelType } from "../store/config";
 import { ApiPath, OPENAI_BASE_URL, OpenaiPath } from "../constant";
 import { getClientConfig } from "../config/client";
 import { collectModels } from "../utils/model";
+import { capsLabel, queueModelTest } from "../utils/model-caps";
 import { fetch } from "../utils/stream";
 import {
   AZURE_DEFAULT_API_VERSION,
@@ -292,7 +293,15 @@ function ChannelRow(props: {
 }
 
 function ModelChecklist(props: {
-  items: { key: string; name: string; hint?: string; checked: boolean }[];
+  items: {
+    key: string;
+    name: string;
+    hint?: string;
+    checked: boolean;
+    // tested capabilities, see model-caps.ts
+    model: string;
+    providerName: string;
+  }[];
   onToggle: (key: string, checked: boolean) => void;
   onAdd: (name: string) => void;
   actions?: JSX.Element;
@@ -331,6 +340,16 @@ function ModelChecklist(props: {
           onClick={add}
         />
         {props.actions}
+        <IconButton
+          icon={<ResetIcon />}
+          text={Locale.Settings.Channel.Models.RetestAll}
+          bordered
+          onClick={() =>
+            props.items
+              .filter((i) => i.checked)
+              .forEach((i) => queueModelTest(i.model, i.providerName))
+          }
+        />
       </div>
       <div className={styles.list}>
         {shown.length === 0 ? (
@@ -347,6 +366,24 @@ function ModelChecklist(props: {
               ></input>
               <span className={styles["model-name"]}>{i.name}</span>
               {i.hint && <span className={styles["model-hint"]}>{i.hint}</span>}
+              {i.checked && capsLabel(i.model, i.providerName) && (
+                <>
+                  <span className={styles["model-caps"]}>
+                    {capsLabel(i.model, i.providerName)}
+                  </span>
+                  <span
+                    className={styles["model-retest"]}
+                    title={Locale.Settings.Channel.Models.Retest}
+                    onClick={(e) => {
+                      // the row is a label, don't toggle the checkbox
+                      e.preventDefault();
+                      queueModelTest(i.model, i.providerName);
+                    }}
+                  >
+                    <ResetIcon />
+                  </span>
+                </>
+              )}
             </label>
           ))
         )}
@@ -384,6 +421,8 @@ function DefaultChannelModels() {
         name: m.displayName,
         hint: m.provider?.providerName,
         checked: m.available,
+        model: m.name,
+        providerName: m.provider?.providerName ?? "",
       }))}
       onToggle={(key, checked) =>
         config.update(
@@ -459,6 +498,8 @@ function ChannelModels(props: { channel: Channel }) {
         key: n,
         name: n,
         checked: channel.models.includes(n),
+        model: n,
+        providerName: channel.name,
       }))}
       onToggle={(name, checked) =>
         setModels(
