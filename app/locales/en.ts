@@ -37,6 +37,7 @@ const en: LocaleType = {
     SubTitle: (count: number) => `${count} messages`,
     Thinking: "Thinking (click to expand)",
     Expand: "Expand",
+    Collapse: "Collapse",
     EditMessage: {
       Title: "Edit All Messages",
       Topic: {
@@ -342,6 +343,14 @@ const en: LocaleType = {
           duplicate: "Name is already used by a channel or built-in provider",
         },
         UrlError: "Endpoint URL is required",
+      },
+      DefaultModal: {
+        Title: "Edit Default Channel",
+        UrlSubTitle:
+          "Applies to this browser only. Leave empty to use the site's built-in endpoint (env vars)",
+        ApiKeySubTitle:
+          "Leave empty to use the site's env var key (required if you set a URL)",
+        Reset: "Reset to site default",
       },
       Models: {
         Channel: "Channel",

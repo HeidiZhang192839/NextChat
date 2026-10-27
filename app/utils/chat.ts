@@ -12,6 +12,10 @@ import {
 import { prettyObject } from "./format";
 import { fetch as tauriFetch } from "./stream";
 
+const MAX_CONTINUATIONS = 3;
+const CONTINUE_PROMPT =
+  "Your previous reply was cut off. Continue exactly where it stopped. Do not repeat anything already written and do not add any preamble.";
+
 export function compressImage(file: Blob, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -172,6 +176,17 @@ export function removeImage(imageUrl: string) {
   });
 }
 
+// holding a Web Lock exempts the tab from Chrome's background freezing,
+// returns the function that releases it
+function holdBackgroundLock() {
+  let release = () => {};
+  const released = new Promise<void>((resolve) => (release = resolve));
+  navigator.locks
+    ?.request(`chat-stream-${Date.now()}-${Math.random()}`, () => released)
+    .catch(() => {});
+  return release;
+}
+
 export function stream(
   chatPath: string,
   requestPayload: any,
@@ -193,6 +208,15 @@ export function stream(
   let running = false;
   let runTools: any[] = [];
   let responseRes: Response;
+  const releaseLock = holdBackgroundLock();
+
+  // requestAnimationFrame pauses in hidden tabs, so write text straight into the message there
+  function flushIfHidden() {
+    if (!document.hidden || remainText.length === 0) return;
+    responseText += remainText;
+    options.onUpdate?.(responseText, remainText);
+    remainText = "";
+  }
 
   // animate response to make it looks smooth
   function animateResponseText() {
@@ -291,6 +315,7 @@ export function stream(
       }
       console.debug("[ChatAPI] end");
       finished = true;
+      releaseLock();
       options.onFinish(responseText + remainText, responseRes); // 将res传递给onFinish
     }
   };
@@ -370,6 +395,7 @@ export function stream(
           const chunk = parseSSE(text, runTools);
           if (chunk) {
             remainText += chunk;
+            flushIfHidden();
           }
         } catch (e) {
           console.error("[Request] parse error", text, msg, e);
@@ -379,6 +405,7 @@ export function stream(
         finish();
       },
       onerror(e) {
+        releaseLock();
         options?.onError?.(e);
         throw e;
       },
@@ -419,6 +446,53 @@ export function streamWithThink(
   let isInThinkingMode = false;
   let lastIsThinking = false;
   let lastIsThinkingTagged = false; //between <think> and </think> tags
+  const releaseLock = holdBackgroundLock();
+  let completed = false; // saw [DONE] or a finish_reason, so the stream ended on purpose
+  let continuations = 0;
+  let skipThinking = false;
+
+  // long generations can be cut mid-stream (Vercel's time limit, idle timeouts, token limits),
+  // so ask the model to pick up where it stopped instead of ending the reply
+  function tryContinue() {
+    const text = responseText + remainText;
+    if (
+      completed ||
+      finished ||
+      running ||
+      controller.signal.aborted ||
+      !Array.isArray(requestPayload.messages) ||
+      continuations >= MAX_CONTINUATIONS ||
+      text.length === 0
+    ) {
+      return false;
+    }
+    continuations += 1;
+    // drop the leading "> " thinking block (see isInThinkingMode below)
+    const thinkingEnd = text.startsWith("> ") ? text.search(/\n\n(?!> )/) : 0;
+    const answer = thinkingEnd === -1 ? "" : text.slice(thinkingEnd).trim();
+    // once the answer has started, a second round of thinking would land in the middle of it
+    skipThinking = answer.length > 0;
+    const messages = answer
+      ? requestPayload.messages.concat(
+          { role: "assistant", content: answer },
+          { role: "user", content: CONTINUE_PROMPT },
+        )
+      : requestPayload.messages;
+    console.debug("[ChatAPI] continue", continuations);
+    setTimeout(
+      () => chatApi(chatPath, headers, { ...requestPayload, messages }, tools),
+      1000,
+    );
+    return true;
+  }
+
+  // requestAnimationFrame pauses in hidden tabs, so write text straight into the message there
+  function flushIfHidden() {
+    if (!document.hidden || remainText.length === 0) return;
+    responseText += remainText;
+    options.onUpdate?.(responseText, remainText);
+    remainText = "";
+  }
 
   // animate response to make it looks smooth
   function animateResponseText() {
@@ -507,6 +581,7 @@ export function streamWithThink(
             // call again
             console.debug("[ChatAPI] restart");
             running = false;
+            completed = false;
             chatApi(chatPath, headers, requestPayload, tools); // call fetchEventSource
           }, 60);
         });
@@ -517,6 +592,7 @@ export function streamWithThink(
       }
       console.debug("[ChatAPI] end");
       finished = true;
+      releaseLock();
       options.onFinish(responseText + remainText, responseRes);
     }
   };
@@ -585,12 +661,17 @@ export function streamWithThink(
       },
       onmessage(msg) {
         if (msg.data === "[DONE]" || finished) {
+          completed = true;
           return finish();
         }
         const text = msg.data;
         // Skip empty messages
         if (!text || text.trim().length === 0) {
           return;
+        }
+        // "length" means the token limit cut the reply, so it is continued too
+        if (/"finish_reason"\s*:\s*"(?!length"|null")/.test(text)) {
+          completed = true;
         }
         try {
           const chunk = parseSSE(text, runTools);
@@ -614,6 +695,10 @@ export function streamWithThink(
             }
           }
           // deal with <think> and </think> tags start
+
+          if (skipThinking && chunk.isThinking) {
+            return;
+          }
 
           // Check if thinking mode changed
           const isThinkingChanged = lastIsThinking !== chunk.isThinking;
@@ -647,15 +732,19 @@ export function streamWithThink(
               remainText += chunk.content;
             }
           }
+          flushIfHidden();
         } catch (e) {
           console.error("[Request] parse error", text, msg, e);
           // Don't throw error for parse failures, just log them
         }
       },
       onclose() {
-        finish();
+        if (!tryContinue()) finish();
       },
       onerror(e) {
+        // throwing stops fetchEventSource's own retry, which would resend the original request
+        if (tryContinue()) throw e;
+        releaseLock();
         options?.onError?.(e);
         throw e;
       },

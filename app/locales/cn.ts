@@ -36,6 +36,7 @@ const cn = {
     SubTitle: (count: number) => `共 ${count} 条对话`,
     Thinking: "思考过程 (点击展开)",
     Expand: "展开",
+    Collapse: "收起",
     EditMessage: {
       Title: "编辑消息记录",
       Topic: {
@@ -339,6 +340,13 @@ const cn = {
           duplicate: "渠道名称与已有渠道或内置服务商重名",
         },
         UrlError: "接口地址不能为空",
+      },
+      DefaultModal: {
+        Title: "编辑默认渠道",
+        UrlSubTitle: "仅对当前浏览器生效，留空则使用站点内置接入点（环境变量）",
+        ApiKeySubTitle:
+          "留空则使用站点环境变量中的 Key（填写了接口地址时必填）",
+        Reset: "恢复站点默认",
       },
       Models: {
         Channel: "渠道",

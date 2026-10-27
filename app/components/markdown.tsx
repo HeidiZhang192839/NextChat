@@ -354,7 +354,8 @@ export function Markdown(
 
   const [tooLong, setTooLong] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const folded = !!props.fold && tooLong && !expanded;
+  const foldable = !!props.fold && tooLong;
+  const folded = foldable && !expanded;
 
   useEffect(() => {
     if (mdRef.current) {
@@ -375,10 +376,7 @@ export function Markdown(
           fontSize: `${props.fontSize ?? 14}px`,
           fontFamily: props.fontFamily || "inherit",
           maxHeight: folded ? `${MESSAGE_FOLD_HEIGHT}px` : "none",
-          overflowY: folded ? "hidden" : undefined,
-          maskImage: folded
-            ? "linear-gradient(to bottom, #000 80%, transparent)"
-            : undefined,
+          overflowY: folded ? "auto" : undefined,
         }}
         ref={mdRef}
         onContextMenu={props.onContextMenu}
@@ -399,12 +397,12 @@ export function Markdown(
           </>
         )}
       </div>
-      {folded && (
+      {foldable && (
         <button
           className="markdown-fold-button"
-          onClick={() => setExpanded(true)}
+          onClick={() => setExpanded(!expanded)}
         >
-          {Locale.Chat.Expand}
+          {expanded ? Locale.Chat.Collapse : Locale.Chat.Expand}
         </button>
       )}
     </>

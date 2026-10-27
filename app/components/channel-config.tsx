@@ -9,6 +9,7 @@ import ClearIcon from "../icons/clear.svg";
 import EditIcon from "../icons/edit.svg";
 import ConfirmIcon from "../icons/confirm.svg";
 import DownloadIcon from "../icons/download.svg";
+import ResetIcon from "../icons/reload.svg";
 
 import { IconButton } from "./button";
 import {
@@ -35,6 +36,89 @@ import {
 import { OpenAIListModelResponse } from "../client/platforms/openai";
 
 const DEFAULT_CHANNEL_ID = "default";
+const SITE_OPENAI_URL = getClientConfig()?.isApp
+  ? OPENAI_BASE_URL
+  : ApiPath.OpenAI;
+
+// overrides the site endpoint in this browser via the existing custom endpoint config
+function EditDefaultChannelModal(props: { onClose: () => void }) {
+  const accessStore = useAccessStore();
+  const custom = accessStore.useCustomConfig;
+  const [url, setUrl] = useState(
+    custom && accessStore.openaiUrl !== SITE_OPENAI_URL
+      ? accessStore.openaiUrl
+      : "",
+  );
+  const [apiKey, setApiKey] = useState(custom ? accessStore.openaiApiKey : "");
+
+  const save = () => {
+    accessStore.update((access) => {
+      access.useCustomConfig = true;
+      access.openaiUrl = url.trim() || SITE_OPENAI_URL;
+      access.openaiApiKey = apiKey.trim();
+    });
+    props.onClose();
+  };
+  const reset = () => {
+    accessStore.update((access) => {
+      access.openaiUrl = SITE_OPENAI_URL;
+      access.openaiApiKey = "";
+    });
+    props.onClose();
+  };
+
+  return (
+    <div className="modal-mask">
+      <Modal
+        title={Locale.Settings.Channel.DefaultModal.Title}
+        onClose={props.onClose}
+        actions={[
+          <IconButton
+            key="reset"
+            icon={<ResetIcon />}
+            text={Locale.Settings.Channel.DefaultModal.Reset}
+            bordered
+            onClick={reset}
+          />,
+          <IconButton
+            key="save"
+            icon={<ConfirmIcon />}
+            text={Locale.Settings.Channel.EditModal.Save}
+            type="primary"
+            bordered
+            onClick={save}
+          />,
+        ]}
+      >
+        <List>
+          <ListItem
+            title={Locale.Settings.Channel.EditModal.Url}
+            subTitle={Locale.Settings.Channel.DefaultModal.UrlSubTitle}
+          >
+            <input
+              type="text"
+              value={url}
+              placeholder={location.origin + ApiPath.OpenAI}
+              onChange={(e) => setUrl(e.currentTarget.value)}
+            ></input>
+          </ListItem>
+          <ListItem
+            title={Locale.Settings.Channel.EditModal.ApiKey}
+            subTitle={Locale.Settings.Channel.DefaultModal.ApiKeySubTitle}
+          >
+            <PasswordInput
+              aria={Locale.Settings.Channel.EditModal.ApiKey}
+              value={apiKey}
+              type="text"
+              placeholder="sk-..."
+              onChange={(e) => setApiKey(e.currentTarget.value)}
+            />
+          </ListItem>
+        </List>
+      </Modal>
+    </div>
+  );
+}
 
 function EditChannelModal(props: { channel: Channel; onClose: () => void }) {
   const config = useAppConfig();
@@ -335,13 +419,12 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
   const [tab, setTab] = useState<"channel" | "model">("channel");
   const [modelChannelId, setModelChannelId] = useState(DEFAULT_CHANNEL_ID);
   const [editingChannel, setEditingChannel] = useState<Channel>();
+  const [editingDefault, setEditingDefault] = useState(false);
 
   const defaultUrl =
     accessStore.useCustomConfig && accessStore.openaiUrl
       ? accessStore.openaiUrl
-      : getClientConfig()?.isApp
-      ? OPENAI_BASE_URL
-      : ApiPath.OpenAI;
+      : SITE_OPENAI_URL;
   const modelChannel = config.channels.find((c) => c.id === modelChannelId);
 
   const deleteChannel = async (channel: Channel) => {
@@ -409,6 +492,8 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
                     : defaultUrl
                 }
                 onEdit={() => {
+                  if (!accessStore.hideUserApiKey)
+                    return setEditingDefault(true);
                   setModelChannelId(DEFAULT_CHANNEL_ID);
                   setTab("model");
                 }}
@@ -458,6 +543,9 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
           channel={editingChannel}
           onClose={() => setEditingChannel(undefined)}
         />
+      )}
+      {editingDefault && (
+        <EditDefaultChannelModal onClose={() => setEditingDefault(false)} />
       )}
     </div>
   );
