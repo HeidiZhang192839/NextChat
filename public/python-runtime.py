@@ -498,6 +498,69 @@ def _prepare(code):
     return code, imports, dynamic, pip
 
 
+SHELL_FUNCTIONS = {
+    "os": {"system", "popen"},
+    "subprocess": {"run", "call", "check_call", "check_output", "Popen", "getoutput", "getstatusoutput"},
+}
+
+
+def _is_pip_install(command):
+    """whether a command argument is only `pip install`s, which micropip can do"""
+    if isinstance(command, ast.Constant) and isinstance(command.value, str):
+        lines = [c for c in re.split(r"[\n;&|]", command.value) if c.strip()]
+        return bool(lines) and all(_pip_packages(_split_command(c)) is not None for c in lines)
+    if isinstance(command, (ast.List, ast.Tuple)):
+        # e.g. [sys.executable, "-m", "pip", "install", ...]
+        parts = [e.value for e in command.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+        return _pip_packages(parts) is not None
+    return False
+
+
+def _server_reason(code):
+    """why the code needs real python on the server, or None if the browser can
+    run it: shell commands other than `pip install`, or multiple processes"""
+    tree = ast.parse(code, FILENAME)
+    modules, functions = {}, {}  # local names of os/subprocess and their functions
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in ("multiprocessing", "concurrent.futures.process"):
+                    return "it uses multiple processes"
+                modules[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.split(".")[0] == "multiprocessing":
+                return "it uses multiple processes"
+            for alias in node.names:
+                if alias.name == "ProcessPoolExecutor":
+                    return "it uses multiple processes"
+                functions[alias.asname or alias.name] = (node.module, alias.name)
+        elif isinstance(node, (ast.Name, ast.Attribute)):
+            if (node.id if isinstance(node, ast.Name) else node.attr) == "ProcessPoolExecutor":
+                return "it uses multiple processes"
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func, module, name = node.func, None, None
+        if isinstance(func, ast.Name) and func.id in functions:
+            module, name = functions[func.id]
+        elif isinstance(func, ast.Attribute):
+            name, value = func.attr, func.value
+            if isinstance(value, ast.Name):
+                module = modules.get(value.id)
+            # `!cmd` lines, as _convert_magics() writes them
+            elif isinstance(value, ast.Call) and getattr(value.func, "id", None) == "__import__" and value.args:
+                module = getattr(value.args[0], "value", None)
+        if name not in SHELL_FUNCTIONS.get(module, ()):
+            continue
+        command = node.args[0] if node.args else next(
+            (k.value for k in node.keywords if k.arg in ("args", "command", "cmd")), None
+        )
+        if not _is_pip_install(command):
+            return "it runs shell commands"
+    return None
+
+
 def _importable(name):
     try:
         return importlib.util.find_spec(name) is not None
@@ -566,13 +629,21 @@ def _format_error(e):
     return "".join(te.format())
 
 
-async def run(code):
-    """runs the code in __main__ and returns what to send back to the tool"""
+async def run(code, server=False):
+    """runs the code in __main__ and returns what to send back to the tool. with
+    a server to run python on, code that needs it isn't run here, and the reason
+    why is returned as "server" instead"""
     try:
         code, imports, dynamic, pip = _prepare(code)
     except SyntaxError as e:
         return {"error": "".join(traceback.format_exception_only(e))}
+    reason = server and _server_reason(code)
+    if reason:
+        return {"server": reason}
     await _install(code, imports, dynamic, pip)
+    missing = [name for name in sorted(imports) if not _importable(name)]
+    if server and missing:
+        return {"server": f"{', '.join(missing)} can't be installed in the browser"}
     await _before_run()
     # so tracebacks show the lines of the code
     linecache.cache[FILENAME] = (len(code), None, code.splitlines(True), FILENAME)
@@ -606,3 +677,6 @@ async def run(code):
 
 _patch_processes()
 _patch_concurrency()
+# the 4300-digit limit on int <-> str guards servers against slow conversions,
+# which only matter here as far as the run's timeout
+sys.set_int_max_str_digits(0)

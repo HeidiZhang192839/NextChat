@@ -112,7 +112,7 @@ self.onmessage = async (e) => {
   pyodide.setStderr({ batched: (s) => stderr.push(s) });
   let output;
   try {
-    const result = await runtime.get("run")(e.data.code);
+    const result = await runtime.get("run")(e.data.code, e.data.server);
     output = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
   } catch (ex) {

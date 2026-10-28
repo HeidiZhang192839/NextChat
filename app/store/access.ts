@@ -148,6 +148,7 @@ const DEFAULT_ACCESS_STATE = {
   customModels: "",
   defaultModel: "",
   visionModels: "",
+  codeServer: false,
   // /api/config has answered at least once, so customModels above are the site's
   serverConfigLoaded: false,
 

@@ -96,6 +96,9 @@ declare global {
       DEFAULT_INPUT_TEMPLATE?: string;
 
       ENABLE_MCP?: string; // enable mcp functionality
+
+      // python that runs the code execution tool's code on the server
+      CODE_SERVER_PYTHON?: string;
     }
   }
 }
@@ -274,5 +277,6 @@ export const getServerSideConfig = () => {
     visionModels,
     allowedWebDavEndpoints,
     enableMcp: process.env.ENABLE_MCP === "true",
+    codeServerPython: process.env.CODE_SERVER_PYTHON,
   };
 };

@@ -15,6 +15,8 @@ const DANGER_CONFIG = {
   customModels: serverConfig.customModels,
   defaultModel: serverConfig.defaultModel,
   visionModels: serverConfig.visionModels,
+  // the code execution tool can run code on the server (app/api/code-exec)
+  codeServer: !!serverConfig.codeServerPython && serverConfig.needCode,
 };
 
 declare global {

@@ -1,5 +1,5 @@
 import OpenAPIClientAxios from "openapi-client-axios";
-import { StoreKey } from "../constant";
+import { ACCESS_CODE_PREFIX, StoreKey } from "../constant";
 import { nanoid } from "nanoid";
 import { createPersistStore } from "../utils/store";
 import { getClientConfig } from "../config/client";
@@ -297,13 +297,95 @@ export const CODE_EXECUTION_PLUGIN_ID = "codeexec";
 
 const RUN_CODE_TIMEOUT_MS = 120_000;
 
-type PythonOutput = { images?: string[]; html?: string[]; error?: string };
+type PythonOutput = {
+  images?: string[];
+  html?: string[];
+  error?: string;
+  note?: string;
+  // why the code needs the server, instead of running in the browser
+  server?: string;
+};
 
 let pythonWorker: Worker | undefined;
 // one run at a time, so the stdout of parallel calls doesn't mix
 let pythonQueue: Promise<unknown> = Promise.resolve();
 
-function runPython(code: string, reset?: boolean) {
+// code that needs what the browser can't do (shell commands, process pools,
+// packages pyodide doesn't have) runs with real python on the server
+// (app/api/code-exec). once a run has, later ones stay there, so they see its
+// variables and files
+let serverSession: string | undefined;
+// the desktop app has no server
+let serverOff = isApp;
+let ranInBrowser = false;
+
+function canUseServer() {
+  return !serverOff && useAccessStore.getState().codeServer;
+}
+
+async function runOnServer(code: string, session: string, fresh: boolean) {
+  try {
+    const res = await fetch("/api/code-exec", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ACCESS_CODE_PREFIX}${
+          useAccessStore.getState().accessCode
+        }`,
+      },
+      body: JSON.stringify({ session, code, fresh }),
+    });
+    const output = await res.json();
+    // the server can't run code, or not for this user
+    if ([401, 404, 503].includes(res.status)) {
+      return { unavailable: String(output.error ?? res.statusText) };
+    }
+    return output as PythonOutput;
+  } catch (e) {
+    return { error: `Couldn't reach the server to run the code: ${e}` };
+  }
+}
+
+async function runCode(code: string, reset?: boolean): Promise<PythonOutput> {
+  if (reset) {
+    serverSession = undefined;
+    ranInBrowser = false;
+  }
+  if (serverSession) {
+    const result = await runOnServer(code, serverSession, false);
+    return "unavailable" in result
+      ? { error: `The server can't run code anymore: ${result.unavailable}` }
+      : result;
+  }
+  const output = await runPython(code, reset, canUseServer());
+  if (!output.server) {
+    ranInBrowser = true;
+    return output;
+  }
+  const session = nanoid();
+  const result = await runOnServer(code, session, true);
+  if ("unavailable" in result) {
+    serverOff = true;
+    return {
+      ...(await runPython(code, false, false)),
+      note: `Ran in the browser, though ${output.server}: the server can't run code (${result.unavailable})`,
+    };
+  }
+  serverSession = session;
+  return {
+    ...result,
+    note: [
+      `Ran with real Python on the server, because ${output.server}`,
+      ranInBrowser &&
+        "variables and files from the earlier runs in the browser aren't there",
+      "later runs stay on the server until reset",
+    ]
+      .filter(Boolean)
+      .join("; "),
+  };
+}
+
+function runPython(code: string, reset?: boolean, server?: boolean) {
   if (reset) {
     pythonWorker?.terminate();
     pythonWorker = undefined;
@@ -338,36 +420,46 @@ function runPython(code: string, reset?: boolean) {
       pythonWorker = undefined;
       resolve({ error: `The Python worker failed: ${e.message}` });
     };
-    worker.postMessage({ code, proxy });
+    worker.postMessage({ code, proxy, server });
   });
 }
 
 const CodeExecutionTool = {
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "run_code",
-        description:
-          "Run Python 3.12 code (Pyodide, a WebAssembly sandbox in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables, imports and files persist between calls; pass reset to start a clean session. Imported packages are installed automatically: Pyodide's own (numpy, pandas, scipy, scikit-learn, sympy, matplotlib, opencv...) and pure-Python ones from PyPI (seaborn, plotly, openpyxl...); `pip install` also works as `!pip`/`%pip` or through subprocess/os.system. Packages with native code Pyodide doesn't ship (torch, tensorflow) can't be installed. HTTP works through urllib, requests, pandas.read_csv(url) and pyodide.http.pyfetch, but not raw sockets. There's one CPU and no other processes or shell commands; threads, executors and multiprocessing pools run their tasks one after another when started (daemon threads aren't supported). Top-level await and asyncio.run() work. Matplotlib figures left open and plotly fig.show() are shown to the user as images and interactive charts (Chinese text works); don't save them or print image data yourself. Use print() to show results.",
-        parameters: {
-          type: "object",
-          properties: {
-            code: { type: "string", description: "The Python code to run" },
-            reset: {
-              type: "boolean",
-              description:
-                "Start a fresh Python session first, clearing variables, files and installed packages from earlier runs",
+  // what the code can do depends on whether the server can run it
+  get tools() {
+    return [
+      {
+        type: "function",
+        function: {
+          name: "run_code",
+          description: `Run Python 3.12 code (Pyodide, a WebAssembly sandbox in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables, imports and files persist between calls; pass reset to start a clean session. Imported packages are installed automatically: Pyodide's own (numpy, pandas, scipy, scikit-learn, sympy, matplotlib, opencv...) and pure-Python ones from PyPI (seaborn, plotly, openpyxl...); \`pip install\` also works as \`!pip\`/\`%pip\` or through subprocess/os.system. ${
+            canUseServer()
+              ? "Code that imports packages with native code Pyodide doesn't ship (torch, tensorflow...), runs shell commands (ffmpeg, git...) or uses multiprocessing/ProcessPoolExecutor runs with real Python on the server instead, where those packages are installed automatically too and processes use all CPUs; once a run has gone there, later runs stay on the server until reset."
+              : "Packages with native code Pyodide doesn't ship (torch, tensorflow) can't be installed."
+          } HTTP works through urllib, requests, pandas.read_csv(url) and pyodide.http.pyfetch, but not raw sockets. ${
+            canUseServer()
+              ? "In the browser, threads and thread pools run their tasks one after another when started (daemon threads aren't supported)."
+              : "There's one CPU and no other processes or shell commands; threads, executors and multiprocessing pools run their tasks one after another when started (daemon threads aren't supported)."
+          } Top-level await and asyncio.run() work. Matplotlib figures left open and plotly fig.show() are shown to the user as images and interactive charts (Chinese text works); don't save them or print image data yourself. Use print() to show results.`,
+          parameters: {
+            type: "object",
+            properties: {
+              code: { type: "string", description: "The Python code to run" },
+              reset: {
+                type: "boolean",
+                description:
+                  "Start a fresh Python session first, clearing variables, files and installed packages from earlier runs",
+              },
             },
+            required: ["code"],
           },
-          required: ["code"],
         },
       },
-    },
-  ] as FunctionToolItem[],
+    ] as FunctionToolItem[];
+  },
   funcs: {
     run_code: (args: { code: string; reset?: boolean }) => {
-      const run = pythonQueue.then(() => runPython(args.code, args.reset));
+      const run = pythonQueue.then(() => runCode(args.code, args.reset));
       pythonQueue = run;
       // images and charts go to the UI only, the model just learns they were shown
       return run.then(({ images, html, ...output }) => ({
