@@ -291,6 +291,101 @@ const WebSearchTool = {
   } as Record<string, Function>,
 };
 
+// built-in code execution tool, runs python in the browser with pyodide
+export const CODE_EXECUTION_PLUGIN_ID = "codeexec";
+
+const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
+const RUN_CODE_TIMEOUT_MS = 120_000;
+
+const PYTHON_WORKER_SOURCE = `
+let ready;
+self.onmessage = async (e) => {
+  let pyodide;
+  try {
+    ready = ready || (importScripts(${JSON.stringify(
+      PYODIDE_URL,
+    )}), loadPyodide());
+    pyodide = await ready;
+  } catch (ex) {
+    ready = undefined;
+    self.postMessage({ error: "Failed to load the Python runtime: " + ex });
+    return;
+  }
+  const stdout = [], stderr = [];
+  pyodide.setStdout({ batched: (s) => stdout.push(s) });
+  pyodide.setStderr({ batched: (s) => stderr.push(s) });
+  let result, error;
+  try {
+    await pyodide.loadPackagesFromImports(e.data);
+    const value = await pyodide.runPythonAsync(e.data);
+    if (value !== undefined) result = String(value);
+  } catch (ex) {
+    error = String(ex);
+  }
+  self.postMessage({ stdout: stdout.join("\\n"), stderr: stderr.join("\\n"), result, error });
+};
+`;
+
+let pythonWorker: Worker | undefined;
+// one run at a time, so the stdout of parallel calls doesn't mix
+let pythonQueue: Promise<unknown> = Promise.resolve();
+
+function runPython(code: string) {
+  if (!pythonWorker) {
+    const blob = new Blob([PYTHON_WORKER_SOURCE], { type: "text/javascript" });
+    pythonWorker = new Worker(URL.createObjectURL(blob));
+  }
+  const worker = pythonWorker;
+  return new Promise<object>((resolve) => {
+    const timer = setTimeout(() => {
+      // pyodide can't be interrupted, so drop the worker and its state
+      worker.terminate();
+      pythonWorker = undefined;
+      resolve({
+        error: `Timed out after ${
+          RUN_CODE_TIMEOUT_MS / 1000
+        }s, the Python session was reset`,
+      });
+    }, RUN_CODE_TIMEOUT_MS);
+    worker.onmessage = (e) => {
+      clearTimeout(timer);
+      resolve(e.data);
+    };
+    worker.postMessage(code);
+  });
+}
+
+const CodeExecutionTool = {
+  tools: [
+    {
+      type: "function",
+      function: {
+        name: "run_code",
+        description:
+          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables and imports persist between calls. Packages such as numpy, pandas, scipy and sympy are loaded automatically when imported. Use print() to show results.",
+        parameters: {
+          type: "object",
+          properties: {
+            code: { type: "string", description: "The Python code to run" },
+          },
+          required: ["code"],
+        },
+      },
+    },
+  ] as FunctionToolItem[],
+  funcs: {
+    run_code: (args: { code: string }) => {
+      const run = pythonQueue.then(() => runPython(args.code));
+      pythonQueue = run;
+      return run.then((data) => ({
+        status: 200,
+        statusText: "OK",
+        data: JSON.stringify(data),
+      }));
+    },
+  } as Record<string, Function>,
+};
+
 export const createEmptyPlugin = () =>
   ({
     id: nanoid(),
@@ -346,6 +441,9 @@ export const usePluginStore = createPersistStore(
       const plugins = get().plugins;
       const selected = [
         ...((ids || []).includes(WEB_SEARCH_PLUGIN_ID) ? [WebSearchTool] : []),
+        ...((ids || []).includes(CODE_EXECUTION_PLUGIN_ID)
+          ? [CodeExecutionTool]
+          : []),
         ...(ids || [])
           .map((id) => plugins[id])
           .filter((i) => i)

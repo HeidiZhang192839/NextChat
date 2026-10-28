@@ -61,6 +61,7 @@ import {
   useChatStore,
   usePluginStore,
   WEB_SEARCH_PLUGIN_ID,
+  CODE_EXECUTION_PLUGIN_ID,
 } from "../store";
 
 import {
@@ -808,6 +809,10 @@ export function ChatActions(props: {
               {
                 title: Locale.Chat.InputActions.WebSearch,
                 value: WEB_SEARCH_PLUGIN_ID,
+              },
+              {
+                title: Locale.Chat.InputActions.CodeExecution,
+                value: CODE_EXECUTION_PLUGIN_ID,
               },
               ...pluginStore.getAll().map((item) => ({
                 title: `${item?.title}@${item?.version}`,

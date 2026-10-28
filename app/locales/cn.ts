@@ -91,6 +91,7 @@ const cn = {
       UploadFile: "上传图片或文件",
       Tools: "工具",
       WebSearch: "联网搜索",
+      CodeExecution: "代码执行",
     },
     Rename: "重命名对话",
     Typing: "正在输入…",

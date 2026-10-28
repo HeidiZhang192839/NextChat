@@ -92,6 +92,7 @@ const en: LocaleType = {
       UploadFile: "Upload Images or Files",
       Tools: "Tools",
       WebSearch: "Web Search",
+      CodeExecution: "Code Execution",
     },
     Rename: "Rename Chat",
     Typing: "Typing…",
