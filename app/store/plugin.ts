@@ -300,15 +300,18 @@ const CJK_FONT_URL =
 const RUN_CODE_TIMEOUT_MS = 120_000;
 
 // pyplot is set to the headless agg backend at load (pyodide's default backend
-// needs the page DOM, which a worker doesn't have); this adds a chinese font
-// and makes plt.show() a no-op, since open figures are sent back after each run
+// needs the page DOM, which a worker doesn't have); this adds a chinese font,
+// also as the fallback for missing fonts like SimHei, and makes plt.show() a
+// no-op, since open figures are sent back after each run
 const MATPLOTLIB_SETUP = `
 import os
 from matplotlib import font_manager
 import matplotlib.pyplot as plt
 if os.path.exists("/cjk.otf"):
     font_manager.fontManager.addfont("/cjk.otf")
-    plt.rcParams["font.sans-serif"].insert(0, font_manager.FontProperties(fname="/cjk.otf").get_name())
+    name = font_manager.FontProperties(fname="/cjk.otf").get_name()
+    plt.rcParams["font.sans-serif"].insert(0, name)
+    font_manager.fontManager.defaultFamily["ttf"] = name
 plt.rcParams["axes.unicode_minus"] = False
 plt.show = lambda *args, **kwargs: None
 `;
@@ -320,6 +323,11 @@ def collect_figures():
     plt = sys.modules.get("matplotlib.pyplot")
     if plt is None:
         return []
+    # e.g. seaborn's set_theme() puts DejaVu Sans, which has no chinese, back in front
+    fm = sys.modules["matplotlib.font_manager"]
+    cjk = fm.fontManager.defaultFamily["ttf"]
+    if cjk != "DejaVu Sans" and "DejaVu" in fm.findfont(fm.FontProperties(family=["sans-serif"])):
+        plt.rcParams["font.sans-serif"] = [cjk] + plt.rcParams["font.sans-serif"]
     images = []
     for num in plt.get_fignums():
         buf = io.BytesIO()
@@ -367,7 +375,7 @@ self.onmessage = async (e) => {
   let result, error, images;
   try {
     await pyodide.loadPackagesFromImports(e.data);
-    if (!matplotlibReady && /\\bmatplotlib\\b/.test(e.data)) {
+    if (!matplotlibReady && pyodide.loadedPackages.matplotlib) {
       await setupMatplotlib(pyodide);
     }
     const value = await pyodide.runPythonAsync(e.data);
@@ -422,7 +430,7 @@ const CodeExecutionTool = {
       function: {
         name: "run_code",
         description:
-          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables and imports persist between calls. Packages such as numpy, pandas, scipy, sympy and matplotlib are loaded automatically when imported. Use print() to show results. Matplotlib figures left open when the code finishes are shown to the user as images (Chinese text is supported); don't save them or print image data yourself.",
+          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables, imports and files persist between calls. Packages such as numpy, pandas, scipy, scikit-learn, sympy, opencv and matplotlib are loaded automatically from plain import statements (not from __import__ or importlib); install other pure-Python packages with `import micropip; await micropip.install(name)`. It's a WebAssembly sandbox: no subprocesses, shell commands or threads, a single CPU, and HTTP only through `await pyodide.http.pyfetch(url)` (subject to CORS). Use print() to show results. Matplotlib figures left open when the code finishes are shown to the user as images (Chinese text is supported); don't save them or print image data yourself.",
         parameters: {
           type: "object",
           properties: {
