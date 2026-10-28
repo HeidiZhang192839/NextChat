@@ -35,6 +35,20 @@ English / [简体中文](./README_CN.md)
 
 </div>
 
+## ✨ What's Added in This Fork
+
+This fork builds on NextChat 2.16.1 and adds:
+
+- **Model & channel management**: add OpenAI-compatible, Anthropic, Google Gemini and Azure OpenAI channels, each with its own URL, key and model list (typed in or fetched from the provider)
+- **Tools in chat**: a Tools button in the input bar to turn on built-in tools and installed plugins
+  - **Web search** through a SearXNG instance (`SEARXNG_URL`); `render.yaml` deploys one on Render for free
+  - **Fetch webpage**: lets the model read full pages and PDFs, summarizing pages that are too long
+  - **Code execution**: runs Python in the browser with Pyodide, showing matplotlib figures and interactive Plotly charts; code that needs shell commands, multiple processes or packages like torch can run on the server with real Python (`CODE_SERVER_PYTHON`)
+- **Attachments**: paste or upload images, PDFs, Office documents and text/code files; each model is tested once to see what it accepts natively, and anything else is turned into text
+- **Thinking & long-message folding**: reasoning and tool calls fold into one collapsible block, and long older messages fold
+- **Reliable generation**: replies that get cut off continue on their own, and generation keeps running when the tab is in the background
+- **Pinned chats**: pin chats to the top of the sidebar
+
 ## ❤️ Sponsor AI API
 
 <a href='https://302.ai/'>
@@ -358,6 +372,19 @@ Customize Stability API url.
 ### `ENABLE_MCP` (optional)
 
 Enable MCP（Model Context Protocol）Feature
+
+### `SEARXNG_URL` (optional)
+
+> Example: `http://localhost:8080`
+
+SearXNG instance used by the built-in web search tool. The instance must enable the `json` format in its `settings.yml`.
+
+### `CODE_SERVER_PYTHON` (optional)
+
+> Default: Empty (code only runs in the browser)
+> Example: `python3`
+
+Python used by the code execution tool to run code on the server: code that needs shell commands, multiple processes or packages the browser can't install (torch...). Requires `CODE` to be set; when the server runs as root, the code runs as `nobody`.
 
 ### `SILICONFLOW_API_KEY` (optional)
 
