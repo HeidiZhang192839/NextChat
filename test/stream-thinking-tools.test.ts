@@ -70,6 +70,8 @@ test("thinking and tool calls of every round stay in the thinking block", async 
     document: { hidden: false },
     requestAnimationFrame: (cb: () => void) => setTimeout(cb, 0),
   });
+  // Node 18 has no navigator, newer versions have a read-only one
+  (globalThis as any).navigator ??= {};
 
   const updates: string[] = [];
   const message = await new Promise<string>((onFinish) =>
