@@ -474,6 +474,7 @@ export function streamWithThink(
   let completed = false; // saw [DONE] or a finish_reason, so the stream ended on purpose
   let continuations = 0;
   let skipThinking = false;
+  let afterTools = false;
 
   // long generations can be cut mid-stream (Vercel's time limit, idle timeouts, token limits),
   // so ask the model to pick up where it stopped instead of ending the reply
@@ -552,9 +553,27 @@ export function streamWithThink(
         };
         running = true;
         runTools.splice(0, runTools.length); // empty runTools
+        // fold the round so far and its tool calls into the thinking block,
+        // so the next round's thinking lands there too instead of in the answer
+        const text = (responseText + remainText).trim();
+        const thinking = text
+          ? text
+              .split("\n")
+              .map((line) => (line.startsWith("> ") ? line : `> ${line}`))
+              .join("\n") + "\n> \n"
+          : "";
+        const toolLines = toolCallMessage.tool_calls.map(
+          (tool) => `> - ⏳ \`${tool.function.name}\``,
+        );
+        const showTools = () => {
+          responseText = thinking + toolLines.join("\n");
+          remainText = "";
+          options.onUpdate?.(responseText, "");
+        };
+        showTools();
         return Promise.all(
-          toolCallMessage.tool_calls.map((tool) => {
-            options?.onBeforeTool?.(tool);
+          toolCallMessage.tool_calls.map((tool, i) => {
+            options?.onBeforeTool?.({ ...tool, inThinking: true });
             let display: { images?: string[]; html?: string[] } = {};
             return Promise.resolve(
               // @ts-ignore
@@ -584,7 +603,10 @@ export function streamWithThink(
                   content,
                   ...display,
                   isError: false,
+                  inThinking: true,
                 });
+                toolLines[i] = `> - ✅ \`${tool.function.name}\``;
+                showTools();
                 return content;
               })
               .catch((e) => {
@@ -592,7 +614,10 @@ export function streamWithThink(
                   ...tool,
                   isError: true,
                   errorMsg: e.toString(),
+                  inThinking: true,
                 });
+                toolLines[i] = `> - ❌ \`${tool.function.name}\``;
+                showTools();
                 return e.toString();
               })
               .then((content) => ({
@@ -609,6 +634,7 @@ export function streamWithThink(
             console.debug("[ChatAPI] restart");
             running = false;
             completed = false;
+            afterTools = true;
             chatApi(chatPath, headers, requestPayload, tools); // call fetchEventSource
           }, 60);
         });
@@ -725,6 +751,13 @@ export function streamWithThink(
 
           if (skipThinking && chunk.isThinking) {
             return;
+          }
+
+          // the round after a tool call starts below its tool lines
+          if (afterTools) {
+            afterTools = false;
+            remainText += chunk.isThinking ? "\n\n> " : "\n\n";
+            isInThinkingMode = lastIsThinking = chunk.isThinking;
           }
 
           // Check if thinking mode changed

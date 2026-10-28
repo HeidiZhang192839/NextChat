@@ -60,6 +60,8 @@ export type ChatMessageTool = {
   html?: string[];
   isError?: boolean;
   errorMsg?: string;
+  // listed in the thinking block (see streamWithThink) instead of above the message
+  inThinking?: boolean;
 };
 
 export type ChatMessage = RequestMessage & {
