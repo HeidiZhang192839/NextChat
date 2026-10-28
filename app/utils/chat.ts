@@ -276,6 +276,7 @@ export function stream(
         return Promise.all(
           toolCallMessage.tool_calls.map((tool) => {
             options?.onBeforeTool?.(tool);
+            let images: string[] | undefined;
             return Promise.resolve(
               // @ts-ignore
               funcs[tool.function.name](
@@ -286,6 +287,7 @@ export function stream(
               ),
             )
               .then((res) => {
+                images = res.images;
                 let content = res.data || res?.statusText;
                 // hotfix #5614
                 content =
@@ -301,6 +303,7 @@ export function stream(
                 options?.onAfterTool?.({
                   ...tool,
                   content,
+                  images,
                   isError: false,
                 });
                 return content;
@@ -552,6 +555,7 @@ export function streamWithThink(
         return Promise.all(
           toolCallMessage.tool_calls.map((tool) => {
             options?.onBeforeTool?.(tool);
+            let images: string[] | undefined;
             return Promise.resolve(
               // @ts-ignore
               funcs[tool.function.name](
@@ -562,6 +566,7 @@ export function streamWithThink(
               ),
             )
               .then((res) => {
+                images = res.images;
                 let content = res.data || res?.statusText;
                 // hotfix #5614
                 content =
@@ -577,6 +582,7 @@ export function streamWithThink(
                 options?.onAfterTool?.({
                   ...tool,
                   content,
+                  images,
                   isError: false,
                 });
                 return content;

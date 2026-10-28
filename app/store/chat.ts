@@ -39,7 +39,7 @@ import { useAccessStore } from "./access";
 import { collectModelsWithDefaultModel } from "../utils/model";
 import { findChannel } from "../utils/channel";
 import { createEmptyMask, Mask } from "./mask";
-import { WEB_SEARCH_PLUGIN_ID } from "./plugin";
+import { CODE_EXECUTION_PLUGIN_ID, WEB_SEARCH_PLUGIN_ID } from "./plugin";
 import { executeMcpAction, getAllTools, isMcpEnabled } from "../mcp/actions";
 import { extractMcpJson, isMcpJson } from "../mcp/utils";
 
@@ -54,6 +54,8 @@ export type ChatMessageTool = {
     arguments?: string;
   };
   content?: string;
+  // images shown to the user but not sent to the model, e.g. code execution plots
+  images?: string[];
   isError?: boolean;
   errorMsg?: string;
 };
@@ -915,7 +917,7 @@ export const useChatStore = createPersistStore(
   },
   {
     name: StoreKey.Chat,
-    version: 3.4,
+    version: 3.5,
     migrate(persistedState, version) {
       const state = persistedState as any;
       const newState = JSON.parse(
@@ -985,6 +987,15 @@ export const useChatStore = createPersistStore(
           const plugin = s.mask.plugin ?? [];
           if (!plugin.includes(WEB_SEARCH_PLUGIN_ID)) {
             s.mask.plugin = [WEB_SEARCH_PLUGIN_ID, ...plugin];
+          }
+        });
+      }
+      // same for code execution
+      if (version < 3.5) {
+        newState.sessions.forEach((s) => {
+          const plugin = s.mask.plugin ?? [];
+          if (!plugin.includes(CODE_EXECUTION_PLUGIN_ID)) {
+            s.mask.plugin = [...plugin, CODE_EXECUTION_PLUGIN_ID];
           }
         });
       }

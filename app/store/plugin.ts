@@ -295,16 +295,66 @@ const WebSearchTool = {
 export const CODE_EXECUTION_PLUGIN_ID = "codeexec";
 
 const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
+const CJK_FONT_URL =
+  "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf";
 const RUN_CODE_TIMEOUT_MS = 120_000;
 
+// pyplot is set to the headless agg backend at load (pyodide's default backend
+// needs the page DOM, which a worker doesn't have); this adds a chinese font
+// and makes plt.show() a no-op, since open figures are sent back after each run
+const MATPLOTLIB_SETUP = `
+import os
+from matplotlib import font_manager
+import matplotlib.pyplot as plt
+if os.path.exists("/cjk.otf"):
+    font_manager.fontManager.addfont("/cjk.otf")
+    plt.rcParams["font.sans-serif"].insert(0, font_manager.FontProperties(fname="/cjk.otf").get_name())
+plt.rcParams["axes.unicode_minus"] = False
+plt.show = lambda *args, **kwargs: None
+`;
+
+// returns the open figures as png data urls and closes them
+const COLLECT_FIGURES = `
+def collect_figures():
+    import base64, io, sys
+    plt = sys.modules.get("matplotlib.pyplot")
+    if plt is None:
+        return []
+    images = []
+    for num in plt.get_fignums():
+        buf = io.BytesIO()
+        plt.figure(num).savefig(buf, format="png", bbox_inches="tight")
+        images.append("data:image/png;base64," + base64.b64encode(buf.getvalue()).decode())
+    plt.close("all")
+    return images
+collect_figures
+`;
+
 const PYTHON_WORKER_SOURCE = `
-let ready;
+let ready, collectFigures, matplotlibReady;
+async function load() {
+  importScripts(${JSON.stringify(PYODIDE_URL)});
+  const pyodide = await loadPyodide();
+  pyodide.runPython("import os; os.environ['MPLBACKEND'] = 'AGG'");
+  collectFigures = pyodide.runPython(${JSON.stringify(
+    COLLECT_FIGURES,
+  )}, { globals: pyodide.toPy({}) });
+  return pyodide;
+}
+async function setupMatplotlib(pyodide) {
+  try {
+    const res = await fetch(${JSON.stringify(CJK_FONT_URL)});
+    pyodide.FS.writeFile("/cjk.otf", new Uint8Array(await res.arrayBuffer()));
+  } catch (ex) {}
+  pyodide.runPython(${JSON.stringify(
+    MATPLOTLIB_SETUP,
+  )}, { globals: pyodide.toPy({}) });
+  matplotlibReady = true;
+}
 self.onmessage = async (e) => {
   let pyodide;
   try {
-    ready = ready || (importScripts(${JSON.stringify(
-      PYODIDE_URL,
-    )}), loadPyodide());
+    ready = ready || load();
     pyodide = await ready;
   } catch (ex) {
     ready = undefined;
@@ -314,15 +364,25 @@ self.onmessage = async (e) => {
   const stdout = [], stderr = [];
   pyodide.setStdout({ batched: (s) => stdout.push(s) });
   pyodide.setStderr({ batched: (s) => stderr.push(s) });
-  let result, error;
+  let result, error, images;
   try {
     await pyodide.loadPackagesFromImports(e.data);
+    if (!matplotlibReady && /\\bmatplotlib\\b/.test(e.data)) {
+      await setupMatplotlib(pyodide);
+    }
     const value = await pyodide.runPythonAsync(e.data);
     if (value !== undefined) result = String(value);
   } catch (ex) {
     error = String(ex);
   }
-  self.postMessage({ stdout: stdout.join("\\n"), stderr: stderr.join("\\n"), result, error });
+  try {
+    const figures = collectFigures();
+    images = figures.toJs();
+    figures.destroy();
+  } catch (ex) {
+    stderr.push("Failed to render figures: " + ex);
+  }
+  self.postMessage({ stdout: stdout.join("\\n"), stderr: stderr.join("\\n"), result, error, images });
 };
 `;
 
@@ -336,7 +396,7 @@ function runPython(code: string) {
     pythonWorker = new Worker(URL.createObjectURL(blob));
   }
   const worker = pythonWorker;
-  return new Promise<object>((resolve) => {
+  return new Promise<{ images?: string[]; error?: string }>((resolve) => {
     const timer = setTimeout(() => {
       // pyodide can't be interrupted, so drop the worker and its state
       worker.terminate();
@@ -362,7 +422,7 @@ const CodeExecutionTool = {
       function: {
         name: "run_code",
         description:
-          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables and imports persist between calls. Packages such as numpy, pandas, scipy and sympy are loaded automatically when imported. Use print() to show results.",
+          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables and imports persist between calls. Packages such as numpy, pandas, scipy, sympy and matplotlib are loaded automatically when imported. Use print() to show results. Matplotlib figures left open when the code finishes are shown to the user as images (Chinese text is supported); don't save them or print image data yourself.",
         parameters: {
           type: "object",
           properties: {
@@ -377,10 +437,17 @@ const CodeExecutionTool = {
     run_code: (args: { code: string }) => {
       const run = pythonQueue.then(() => runPython(args.code));
       pythonQueue = run;
-      return run.then((data) => ({
+      // images go to the UI only, the model just learns they were shown
+      return run.then(({ images, ...output }) => ({
         status: 200,
         statusText: "OK",
-        data: JSON.stringify(data),
+        data: JSON.stringify({
+          ...output,
+          ...(images?.length && {
+            figures: `${images.length} figure(s) shown to the user`,
+          }),
+        }),
+        images,
       }));
     },
   } as Record<string, Function>,

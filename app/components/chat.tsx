@@ -1983,6 +1983,16 @@ function _Chat() {
                               fold={message.id !== latestMessageId}
                               foldResetKey={latestMessageId}
                             />
+                            {message.tools
+                              ?.flatMap((tool) => tool.images ?? [])
+                              .map((image, index) => (
+                                <img
+                                  className={styles["chat-message-item-image"]}
+                                  key={index}
+                                  src={image}
+                                  alt=""
+                                />
+                              ))}
                             {getMessageImages(message).length == 1 && (
                               <img
                                 className={styles["chat-message-item-image"]}

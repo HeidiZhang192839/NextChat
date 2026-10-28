@@ -5,7 +5,7 @@ import { ModelConfig, useAppConfig } from "./config";
 import { StoreKey } from "../constant";
 import { nanoid } from "nanoid";
 import { createPersistStore } from "../utils/store";
-import { WEB_SEARCH_PLUGIN_ID } from "./plugin";
+import { CODE_EXECUTION_PLUGIN_ID, WEB_SEARCH_PLUGIN_ID } from "./plugin";
 
 export type Mask = {
   id: string;
@@ -44,7 +44,7 @@ export const createEmptyMask = () =>
     lang: getLang(),
     builtin: false,
     createdAt: Date.now(),
-    plugin: [WEB_SEARCH_PLUGIN_ID],
+    plugin: [WEB_SEARCH_PLUGIN_ID, CODE_EXECUTION_PLUGIN_ID],
   }) as Mask;
 
 export const useMaskStore = createPersistStore(
