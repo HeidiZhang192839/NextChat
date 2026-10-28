@@ -54,8 +54,10 @@ export type ChatMessageTool = {
     arguments?: string;
   };
   content?: string;
-  // images shown to the user but not sent to the model, e.g. code execution plots
+  // shown to the user but not sent to the model, e.g. code execution plots
+  // as images and interactive charts as html pages
   images?: string[];
+  html?: string[];
   isError?: boolean;
   errorMsg?: string;
 };

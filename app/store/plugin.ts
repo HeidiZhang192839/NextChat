@@ -292,119 +292,32 @@ const WebSearchTool = {
 };
 
 // built-in code execution tool, runs python in the browser with pyodide
+// (public/python-worker.js and public/python-runtime.py)
 export const CODE_EXECUTION_PLUGIN_ID = "codeexec";
 
-const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
-const CJK_FONT_URL =
-  "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf";
 const RUN_CODE_TIMEOUT_MS = 120_000;
 
-// pyplot is set to the headless agg backend at load (pyodide's default backend
-// needs the page DOM, which a worker doesn't have); this adds a chinese font,
-// also as the fallback for missing fonts like SimHei, and makes plt.show() a
-// no-op, since open figures are sent back after each run
-const MATPLOTLIB_SETUP = `
-import os
-from matplotlib import font_manager
-import matplotlib.pyplot as plt
-if os.path.exists("/cjk.otf"):
-    font_manager.fontManager.addfont("/cjk.otf")
-    name = font_manager.FontProperties(fname="/cjk.otf").get_name()
-    plt.rcParams["font.sans-serif"].insert(0, name)
-    font_manager.fontManager.defaultFamily["ttf"] = name
-plt.rcParams["axes.unicode_minus"] = False
-plt.show = lambda *args, **kwargs: None
-`;
-
-// returns the open figures as png data urls and closes them
-const COLLECT_FIGURES = `
-def collect_figures():
-    import base64, io, sys
-    plt = sys.modules.get("matplotlib.pyplot")
-    if plt is None:
-        return []
-    # e.g. seaborn's set_theme() puts DejaVu Sans, which has no chinese, back in front
-    fm = sys.modules["matplotlib.font_manager"]
-    cjk = fm.fontManager.defaultFamily["ttf"]
-    if cjk != "DejaVu Sans" and "DejaVu" in fm.findfont(fm.FontProperties(family=["sans-serif"])):
-        plt.rcParams["font.sans-serif"] = [cjk] + plt.rcParams["font.sans-serif"]
-    images = []
-    for num in plt.get_fignums():
-        buf = io.BytesIO()
-        plt.figure(num).savefig(buf, format="png", bbox_inches="tight")
-        images.append("data:image/png;base64," + base64.b64encode(buf.getvalue()).decode())
-    plt.close("all")
-    return images
-collect_figures
-`;
-
-const PYTHON_WORKER_SOURCE = `
-let ready, collectFigures, matplotlibReady;
-async function load() {
-  importScripts(${JSON.stringify(PYODIDE_URL)});
-  const pyodide = await loadPyodide();
-  pyodide.runPython("import os; os.environ['MPLBACKEND'] = 'AGG'");
-  collectFigures = pyodide.runPython(${JSON.stringify(
-    COLLECT_FIGURES,
-  )}, { globals: pyodide.toPy({}) });
-  return pyodide;
-}
-async function setupMatplotlib(pyodide) {
-  try {
-    const res = await fetch(${JSON.stringify(CJK_FONT_URL)});
-    pyodide.FS.writeFile("/cjk.otf", new Uint8Array(await res.arrayBuffer()));
-  } catch (ex) {}
-  pyodide.runPython(${JSON.stringify(
-    MATPLOTLIB_SETUP,
-  )}, { globals: pyodide.toPy({}) });
-  matplotlibReady = true;
-}
-self.onmessage = async (e) => {
-  let pyodide;
-  try {
-    ready = ready || load();
-    pyodide = await ready;
-  } catch (ex) {
-    ready = undefined;
-    self.postMessage({ error: "Failed to load the Python runtime: " + ex });
-    return;
-  }
-  const stdout = [], stderr = [];
-  pyodide.setStdout({ batched: (s) => stdout.push(s) });
-  pyodide.setStderr({ batched: (s) => stderr.push(s) });
-  let result, error, images;
-  try {
-    await pyodide.loadPackagesFromImports(e.data);
-    if (!matplotlibReady && pyodide.loadedPackages.matplotlib) {
-      await setupMatplotlib(pyodide);
-    }
-    const value = await pyodide.runPythonAsync(e.data);
-    if (value !== undefined) result = String(value);
-  } catch (ex) {
-    error = String(ex);
-  }
-  try {
-    const figures = collectFigures();
-    images = figures.toJs();
-    figures.destroy();
-  } catch (ex) {
-    stderr.push("Failed to render figures: " + ex);
-  }
-  self.postMessage({ stdout: stdout.join("\\n"), stderr: stderr.join("\\n"), result, error, images });
-};
-`;
+type PythonOutput = { images?: string[]; html?: string[]; error?: string };
 
 let pythonWorker: Worker | undefined;
 // one run at a time, so the stdout of parallel calls doesn't mix
 let pythonQueue: Promise<unknown> = Promise.resolve();
 
-function runPython(code: string) {
+function runPython(code: string, reset?: boolean) {
+  if (reset) {
+    pythonWorker?.terminate();
+    pythonWorker = undefined;
+  }
   if (!pythonWorker) {
-    const blob = new Blob([PYTHON_WORKER_SOURCE], { type: "text/javascript" });
-    pythonWorker = new Worker(URL.createObjectURL(blob));
+    pythonWorker = new Worker("/python-worker.js");
   }
   const worker = pythonWorker;
-  return new Promise<{ images?: string[]; error?: string }>((resolve) => {
+  // requests that CORS blocks are retried through app/api/code-proxy, which
+  // the desktop app doesn't have
+  const proxy = isApp
+    ? undefined
+    : { url: `${location.origin}/api/code-proxy`, headers: getHeaders(true) };
+  return new Promise<PythonOutput>((resolve) => {
     const timer = setTimeout(() => {
       // pyodide can't be interrupted, so drop the worker and its state
       worker.terminate();
@@ -419,7 +332,13 @@ function runPython(code: string) {
       clearTimeout(timer);
       resolve(e.data);
     };
-    worker.postMessage(code);
+    worker.onerror = (e) => {
+      clearTimeout(timer);
+      worker.terminate();
+      pythonWorker = undefined;
+      resolve({ error: `The Python worker failed: ${e.message}` });
+    };
+    worker.postMessage({ code, proxy });
   });
 }
 
@@ -430,11 +349,16 @@ const CodeExecutionTool = {
       function: {
         name: "run_code",
         description:
-          "Run Python code (Pyodide, in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables, imports and files persist between calls. Packages such as numpy, pandas, scipy, scikit-learn, sympy, opencv and matplotlib are loaded automatically from plain import statements (not from __import__ or importlib); install other pure-Python packages with `import micropip; await micropip.install(name)`. It's a WebAssembly sandbox: no subprocesses, shell commands or threads, a single CPU, and HTTP only through `await pyodide.http.pyfetch(url)` (subject to CORS). Use print() to show results. Matplotlib figures left open when the code finishes are shown to the user as images (Chinese text is supported); don't save them or print image data yourself.",
+          "Run Python 3.12 code (Pyodide, a WebAssembly sandbox in the user's browser) and return its stdout, stderr, the value of the last expression, and any error. Variables, imports and files persist between calls; pass reset to start a clean session. Imported packages are installed automatically: Pyodide's own (numpy, pandas, scipy, scikit-learn, sympy, matplotlib, opencv...) and pure-Python ones from PyPI (seaborn, plotly, openpyxl...); `pip install` also works as `!pip`/`%pip` or through subprocess/os.system. Packages with native code Pyodide doesn't ship (torch, tensorflow) can't be installed. HTTP works through urllib, requests, pandas.read_csv(url) and pyodide.http.pyfetch, but not raw sockets. There's one CPU and no other processes or shell commands; threads, executors and multiprocessing pools run their tasks one after another when started (daemon threads aren't supported). Top-level await and asyncio.run() work. Matplotlib figures left open and plotly fig.show() are shown to the user as images and interactive charts (Chinese text works); don't save them or print image data yourself. Use print() to show results.",
         parameters: {
           type: "object",
           properties: {
             code: { type: "string", description: "The Python code to run" },
+            reset: {
+              type: "boolean",
+              description:
+                "Start a fresh Python session first, clearing variables, files and installed packages from earlier runs",
+            },
           },
           required: ["code"],
         },
@@ -442,11 +366,11 @@ const CodeExecutionTool = {
     },
   ] as FunctionToolItem[],
   funcs: {
-    run_code: (args: { code: string }) => {
-      const run = pythonQueue.then(() => runPython(args.code));
+    run_code: (args: { code: string; reset?: boolean }) => {
+      const run = pythonQueue.then(() => runPython(args.code, args.reset));
       pythonQueue = run;
-      // images go to the UI only, the model just learns they were shown
-      return run.then(({ images, ...output }) => ({
+      // images and charts go to the UI only, the model just learns they were shown
+      return run.then(({ images, html, ...output }) => ({
         status: 200,
         statusText: "OK",
         data: JSON.stringify({
@@ -454,8 +378,12 @@ const CodeExecutionTool = {
           ...(images?.length && {
             figures: `${images.length} figure(s) shown to the user`,
           }),
+          ...(html?.length && {
+            charts: `${html.length} interactive chart(s) shown to the user`,
+          }),
         }),
         images,
+        html,
       }));
     },
   } as Record<string, Function>,

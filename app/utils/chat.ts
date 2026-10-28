@@ -276,7 +276,7 @@ export function stream(
         return Promise.all(
           toolCallMessage.tool_calls.map((tool) => {
             options?.onBeforeTool?.(tool);
-            let images: string[] | undefined;
+            let display: { images?: string[]; html?: string[] } = {};
             return Promise.resolve(
               // @ts-ignore
               funcs[tool.function.name](
@@ -287,7 +287,7 @@ export function stream(
               ),
             )
               .then((res) => {
-                images = res.images;
+                display = { images: res.images, html: res.html };
                 let content = res.data || res?.statusText;
                 // hotfix #5614
                 content =
@@ -303,7 +303,7 @@ export function stream(
                 options?.onAfterTool?.({
                   ...tool,
                   content,
-                  images,
+                  ...display,
                   isError: false,
                 });
                 return content;
@@ -555,7 +555,7 @@ export function streamWithThink(
         return Promise.all(
           toolCallMessage.tool_calls.map((tool) => {
             options?.onBeforeTool?.(tool);
-            let images: string[] | undefined;
+            let display: { images?: string[]; html?: string[] } = {};
             return Promise.resolve(
               // @ts-ignore
               funcs[tool.function.name](
@@ -566,7 +566,7 @@ export function streamWithThink(
               ),
             )
               .then((res) => {
-                images = res.images;
+                display = { images: res.images, html: res.html };
                 let content = res.data || res?.statusText;
                 // hotfix #5614
                 content =
@@ -582,7 +582,7 @@ export function streamWithThink(
                 options?.onAfterTool?.({
                   ...tool,
                   content,
-                  images,
+                  ...display,
                   isError: false,
                 });
                 return content;

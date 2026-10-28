@@ -1993,6 +1993,16 @@ function _Chat() {
                                   alt=""
                                 />
                               ))}
+                            {message.tools
+                              ?.flatMap((tool) => tool.html ?? [])
+                              .map((html, index) => (
+                                <iframe
+                                  className={styles["chat-message-item-chart"]}
+                                  key={index}
+                                  srcDoc={html}
+                                  sandbox="allow-scripts"
+                                />
+                              ))}
                             {getMessageImages(message).length == 1 && (
                               <img
                                 className={styles["chat-message-item-image"]}
