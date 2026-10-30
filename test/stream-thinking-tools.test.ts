@@ -99,3 +99,45 @@ test("thinking and tool calls of every round stay in the thinking block", async 
   // let the response animation see the end before the environment goes away
   await new Promise((resolve) => setTimeout(resolve, 10));
 });
+
+test("a reply whose first byte takes over a minute is not cut off", async () => {
+  jest.useFakeTimers();
+  const fetchMock = jest.fn<typeof fetch>(
+    (_, init) =>
+      new Promise((resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted")),
+        );
+        setTimeout(
+          () => resolve(sse([{ content: "Done thinking." }], "stop")),
+          90_000,
+        );
+      }),
+  );
+  await import("../app/store");
+  const { streamWithThink } = await import("../app/utils/chat");
+  Object.assign(globalThis, {
+    window: { fetch: fetchMock },
+    document: { hidden: false },
+    requestAnimationFrame: (cb: () => void) => setTimeout(cb, 16),
+  });
+  (globalThis as any).navigator ??= {};
+
+  const message = new Promise<string>((onFinish) =>
+    streamWithThink(
+      "/chat",
+      { messages: [] },
+      {},
+      [],
+      {},
+      new AbortController(),
+      parseSSE,
+      () => {},
+      { onFinish },
+    ),
+  );
+  await jest.advanceTimersByTimeAsync(91_000);
+
+  expect(await message).toBe("Done thinking.");
+  jest.useRealTimers();
+});

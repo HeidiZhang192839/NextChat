@@ -2,6 +2,7 @@ import {
   CACHE_URL_PREFIX,
   UPLOAD_URL,
   REQUEST_TIMEOUT_MS,
+  REQUEST_TIMEOUT_MS_FOR_THINKING,
 } from "@/app/constant";
 import { MultimodalContent, RequestMessage } from "@/app/client/api";
 import Locale from "@/app/locales";
@@ -667,9 +668,10 @@ export function streamWithThink(
       signal: controller.signal,
       headers,
     };
+    // thinking models may send nothing until they finish thinking
     const requestTimeoutId = setTimeout(
       () => controller.abort(),
-      REQUEST_TIMEOUT_MS,
+      REQUEST_TIMEOUT_MS_FOR_THINKING,
     );
     fetchEventSource(chatPath, {
       fetch: tauriFetch as any,
