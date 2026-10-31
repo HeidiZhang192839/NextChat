@@ -350,6 +350,9 @@ const cn = {
         UrlSubTitle: "接口的基础地址，不含具体请求路径",
         ApiVersion: "API 版本",
         ApiKey: "API Key",
+        UseProxy: "开启代理",
+        UseProxySubTitle:
+          "经站点服务器转发请求以绕过跨域限制；本机地址（如 127.0.0.1）需关闭，由浏览器直接访问",
         NameError: {
           empty: "渠道名称不能为空",
           chars: "渠道名称不能包含 @ , =",

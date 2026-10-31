@@ -41,6 +41,7 @@ export type Channel = {
   models: string[];
   type?: ChannelType; // missing on channels saved before types existed, means "openai"
   apiVersion?: string; // azure only
+  useProxy?: boolean; // web only, missing means on unless the url is local
 };
 
 // result of sending a model a test image and pdf.

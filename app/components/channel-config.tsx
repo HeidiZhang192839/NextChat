@@ -34,6 +34,7 @@ import {
   AZURE_DEFAULT_API_VERSION,
   channelHeaders,
   channelPath,
+  channelUsesProxy,
   validateChannelName,
 } from "../utils/channel";
 import { OpenAIListModelResponse } from "../client/platforms/openai";
@@ -257,6 +258,20 @@ function EditChannelModal(props: { channel: Channel; onClose: () => void }) {
               }
             />
           </ListItem>
+          {!getClientConfig()?.isApp && (
+            <ListItem
+              title={Locale.Settings.Channel.EditModal.UseProxy}
+              subTitle={Locale.Settings.Channel.EditModal.UseProxySubTitle}
+            >
+              <input
+                type="checkbox"
+                checked={channelUsesProxy(draft)}
+                onChange={(e) =>
+                  setDraft({ ...draft, useProxy: e.currentTarget.checked })
+                }
+              ></input>
+            </ListItem>
+          )}
         </List>
       </Modal>
     </div>

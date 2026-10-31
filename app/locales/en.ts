@@ -354,6 +354,9 @@ const en: LocaleType = {
         UrlSubTitle: "Base URL of the API, without the request path",
         ApiVersion: "API Version",
         ApiKey: "API Key",
+        UseProxy: "Use Proxy",
+        UseProxySubTitle:
+          "Send requests through the site's server to avoid CORS. Turn off for local addresses (e.g. 127.0.0.1) so the browser calls them directly",
         NameError: {
           empty: "Channel name is required",
           chars: "Channel name cannot contain @ , =",

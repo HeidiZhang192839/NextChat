@@ -52,14 +52,17 @@ export function azureChannelPath(channel: Channel, deployment: string) {
 }
 
 // the web app goes through the site proxy to avoid CORS, except for
-// local servers: the proxy runs on the host (e.g. vercel), where
+// local servers by default: the proxy runs on the host (e.g. vercel), where
 // 127.0.0.1 is not the user's machine, so the browser calls them directly
 const LOCAL_URL = /^https?:\/\/(localhost|127(\.\d+){3}|\[::1\])(:\d+)?(\/|$)/i;
 
+export function channelUsesProxy(channel: Channel) {
+  return channel.useProxy ?? !LOCAL_URL.test(channelBaseUrl(channel));
+}
+
 export function channelPath(channel: Channel, path: string) {
-  const baseUrl = channelBaseUrl(channel);
-  return getClientConfig()?.isApp || LOCAL_URL.test(baseUrl)
-    ? `${baseUrl}/${path}`
+  return getClientConfig()?.isApp || !channelUsesProxy(channel)
+    ? `${channelBaseUrl(channel)}/${path}`
     : `/api/proxy/${path}`;
 }
 
