@@ -51,10 +51,15 @@ export function azureChannelPath(channel: Channel, deployment: string) {
   return Azure.ChatPath(deployment, version);
 }
 
-// the web app goes through the site proxy to avoid CORS
+// the web app goes through the site proxy to avoid CORS, except for
+// local servers: the proxy runs on the host (e.g. vercel), where
+// 127.0.0.1 is not the user's machine, so the browser calls them directly
+const LOCAL_URL = /^https?:\/\/(localhost|127(\.\d+){3}|\[::1\])(:\d+)?(\/|$)/i;
+
 export function channelPath(channel: Channel, path: string) {
-  return getClientConfig()?.isApp
-    ? `${channelBaseUrl(channel)}/${path}`
+  const baseUrl = channelBaseUrl(channel);
+  return getClientConfig()?.isApp || LOCAL_URL.test(baseUrl)
+    ? `${baseUrl}/${path}`
     : `/api/proxy/${path}`;
 }
 
