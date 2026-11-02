@@ -471,6 +471,7 @@ export function streamWithThink(
   let isInThinkingMode = false;
   let lastIsThinking = false;
   let lastIsThinkingTagged = false; //between <think> and </think> tags
+  let tagRest = ""; // end of the last chunk that may be the start of a tag
   const releaseLock = holdBackgroundLock();
   let completed = false; // saw [DONE] or a finish_reason, so the stream ended on purpose
   let continuations = 0;
@@ -520,6 +521,76 @@ export function streamWithThink(
     remainText = "";
   }
 
+  // models that think in their content wrap it in <think></think>,
+  // which can sit anywhere in a chunk or be split across chunks
+  function splitThinkTags(content: string) {
+    let text = tagRest + content;
+    const pieces: { isThinking: boolean; content: string }[] = [];
+    for (;;) {
+      const tag = lastIsThinkingTagged ? "</think>" : "<think>";
+      const i = text.indexOf(tag);
+      if (i === -1) {
+        // hold back the start of a tag until the next chunk
+        let n = Math.min(tag.length - 1, text.length);
+        while (n > 0 && !tag.startsWith(text.slice(text.length - n))) n--;
+        tagRest = text.slice(text.length - n);
+        pieces.push({
+          isThinking: lastIsThinkingTagged,
+          content: text.slice(0, text.length - n),
+        });
+        return pieces.filter((p) => p.content.length > 0);
+      }
+      pieces.push({
+        isThinking: lastIsThinkingTagged,
+        content: text.slice(0, i),
+      });
+      text = text.slice(i + tag.length).trimStart();
+      lastIsThinkingTagged = !lastIsThinkingTagged;
+    }
+  }
+
+  function appendChunk(chunk: { isThinking: boolean; content: string }) {
+    if (skipThinking && chunk.isThinking) {
+      return;
+    }
+
+    // the round after a tool call starts below its tool lines
+    if (afterTools) {
+      afterTools = false;
+      remainText += chunk.isThinking ? "\n\n> " : "\n\n";
+      isInThinkingMode = lastIsThinking = chunk.isThinking;
+    }
+
+    // Check if thinking mode changed
+    const isThinkingChanged = lastIsThinking !== chunk.isThinking;
+    lastIsThinking = chunk.isThinking;
+
+    if (chunk.isThinking) {
+      // every paragraph is quoted, or the thinking block ends at the first one
+      const quoted = chunk.content.split("\n\n").join("\n\n> ");
+      // If in thinking mode
+      if (!isInThinkingMode || isThinkingChanged) {
+        // If this is a new thinking block or mode changed, add prefix
+        isInThinkingMode = true;
+        if (remainText.length > 0) {
+          remainText += "\n";
+        }
+        remainText += "> " + quoted.trimStart();
+      } else {
+        remainText += quoted;
+      }
+    } else {
+      // If in normal mode
+      if (isInThinkingMode || isThinkingChanged) {
+        // If switching from thinking mode to normal mode
+        isInThinkingMode = false;
+        remainText += "\n\n" + chunk.content;
+      } else {
+        remainText += chunk.content;
+      }
+    }
+  }
+
   // animate response to make it looks smooth
   function animateResponseText() {
     if (finished || controller.signal.aborted) {
@@ -547,6 +618,9 @@ export function streamWithThink(
 
   const finish = () => {
     if (!finished) {
+      // the held back text was not a tag after all
+      remainText += tagRest;
+      tagRest = "";
       if (!running && runTools.length > 0) {
         const toolCallMessage = {
           role: "assistant",
@@ -735,65 +809,10 @@ export function streamWithThink(
             return;
           }
 
-          // deal with <think> and </think> tags start
-          if (!chunk.isThinking) {
-            if (chunk.content.startsWith("<think>")) {
-              chunk.isThinking = true;
-              chunk.content = chunk.content.slice(7).trim();
-              lastIsThinkingTagged = true;
-            } else if (chunk.content.endsWith("</think>")) {
-              chunk.isThinking = false;
-              chunk.content = chunk.content.slice(0, -8).trim();
-              lastIsThinkingTagged = false;
-            } else if (lastIsThinkingTagged) {
-              chunk.isThinking = true;
-            }
-          }
-          // deal with <think> and </think> tags start
-
-          if (skipThinking && chunk.isThinking) {
-            return;
-          }
-
-          // the round after a tool call starts below its tool lines
-          if (afterTools) {
-            afterTools = false;
-            remainText += chunk.isThinking ? "\n\n> " : "\n\n";
-            isInThinkingMode = lastIsThinking = chunk.isThinking;
-          }
-
-          // Check if thinking mode changed
-          const isThinkingChanged = lastIsThinking !== chunk.isThinking;
-          lastIsThinking = chunk.isThinking;
-
-          if (chunk.isThinking) {
-            // If in thinking mode
-            if (!isInThinkingMode || isThinkingChanged) {
-              // If this is a new thinking block or mode changed, add prefix
-              isInThinkingMode = true;
-              if (remainText.length > 0) {
-                remainText += "\n";
-              }
-              remainText += "> " + chunk.content;
-            } else {
-              // Handle newlines in thinking content
-              if (chunk.content.includes("\n\n")) {
-                const lines = chunk.content.split("\n\n");
-                remainText += lines.join("\n\n> ");
-              } else {
-                remainText += chunk.content;
-              }
-            }
-          } else {
-            // If in normal mode
-            if (isInThinkingMode || isThinkingChanged) {
-              // If switching from thinking mode to normal mode
-              isInThinkingMode = false;
-              remainText += "\n\n" + chunk.content;
-            } else {
-              remainText += chunk.content;
-            }
-          }
+          const pieces = chunk.isThinking
+            ? [{ isThinking: true, content: chunk.content }]
+            : splitThinkTags(chunk.content);
+          pieces.forEach(appendChunk);
           flushIfHidden();
         } catch (e) {
           console.error("[Request] parse error", text, msg, e);
