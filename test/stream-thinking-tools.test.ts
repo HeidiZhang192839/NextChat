@@ -66,7 +66,11 @@ test("thinking and tool calls of every round stay in the thinking block", async 
   await import("../app/store");
   const { streamWithThink } = await import("../app/utils/chat");
   Object.assign(globalThis, {
-    window: { fetch: fetchMock },
+    window: {
+      fetch: fetchMock,
+      addEventListener() {},
+      removeEventListener() {},
+    },
     document: { hidden: false },
     requestAnimationFrame: (cb: () => void) => setTimeout(cb, 0),
   });
@@ -117,7 +121,11 @@ test("a reply whose first byte takes over a minute is not cut off", async () => 
   await import("../app/store");
   const { streamWithThink } = await import("../app/utils/chat");
   Object.assign(globalThis, {
-    window: { fetch: fetchMock },
+    window: {
+      fetch: fetchMock,
+      addEventListener() {},
+      removeEventListener() {},
+    },
     document: { hidden: false },
     requestAnimationFrame: (cb: () => void) => setTimeout(cb, 16),
   });

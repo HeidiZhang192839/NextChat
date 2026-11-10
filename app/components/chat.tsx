@@ -40,6 +40,7 @@ import DarkIcon from "../icons/dark.svg";
 import AutoIcon from "../icons/auto.svg";
 import BottomIcon from "../icons/bottom.svg";
 import StopIcon from "../icons/pause.svg";
+import PlayIcon from "../icons/play.svg";
 import RobotIcon from "../icons/robot.svg";
 import SizeIcon from "../icons/size.svg";
 import QualityIcon from "../icons/hd.svg";
@@ -77,6 +78,7 @@ import {
   useMobileScreen,
   selectOrCopy,
 } from "../utils";
+import { withoutThinking } from "../utils/chat";
 
 import {
   readFileAsDataUrl,
@@ -1159,6 +1161,12 @@ function _Chat() {
     chatStore.updateTargetSession(session, (session) => {
       const stopTiming = Date.now() - REQUEST_TIMEOUT_MS;
       session.messages.forEach((m) => {
+        // nothing streams into it any more, the page was reloaded or closed mid-reply
+        if (m.streaming && !ChatControllerPool.has(session.id, m.id)) {
+          m.streaming = false;
+          m.interrupted = true;
+        }
+
         // check if should stop all stale messages
         if (m.isError || new Date(m.date).getTime() < stopTiming) {
           if (m.streaming) {
@@ -1281,6 +1289,15 @@ function _Chat() {
       .onUserInput(textContent, images, false, files)
       .then(() => setIsLoading(false));
     inputRef.current?.focus();
+  };
+
+  const onContinue = (message: ChatMessage) => {
+    // no answer arrived before it was cut off, so there is nothing to continue from
+    if (!withoutThinking(getMessageTextContent(message))) {
+      onResend(message);
+      return;
+    }
+    chatStore.continueMessage(message.id);
   };
 
   const onPinMessage = (message: ChatMessage) => {
@@ -1880,6 +1897,16 @@ function _Chat() {
                                     />
                                   ) : (
                                     <>
+                                      {message.interrupted &&
+                                        !message.isError &&
+                                        message.id ===
+                                          session.messages.at(-1)?.id && (
+                                          <ChatAction
+                                            text={Locale.Chat.Actions.Continue}
+                                            icon={<PlayIcon />}
+                                            onClick={() => onContinue(message)}
+                                          />
+                                        )}
                                       <ChatAction
                                         text={Locale.Chat.Actions.Retry}
                                         icon={<ResetIcon />}

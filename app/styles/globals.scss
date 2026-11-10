@@ -107,6 +107,8 @@ body {
   user-select: none;
   touch-action: pan-x pan-y;
   overflow: hidden;
+  // no pull-to-refresh on phones, which reloads the page mid-reply
+  overscroll-behavior-y: none;
 
   @media only screen and (max-width: 600px) {
     background-color: var(--second);

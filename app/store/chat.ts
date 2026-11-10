@@ -33,6 +33,7 @@ import Locale, { getLang } from "../locales";
 import { prettyObject } from "../utils/format";
 import { createPersistStore } from "../utils/store";
 import { prepareAttachments } from "../utils/attachments";
+import { CONTINUE_PROMPT, withoutThinking } from "../utils/chat";
 import { estimateTokenLength } from "../utils/token";
 import { ModelConfig, ModelType, useAppConfig } from "./config";
 import { useAccessStore } from "./access";
@@ -67,6 +68,8 @@ export type ChatMessageTool = {
 export type ChatMessage = RequestMessage & {
   date: string;
   streaming?: boolean;
+  // the page was reloaded or closed while this reply was streaming
+  interrupted?: boolean;
   isError?: boolean;
   id: string;
   model?: ModelType;
@@ -252,6 +255,82 @@ export const useChatStore = createPersistStore(
         ..._get(),
         ...methods,
       };
+    }
+
+    // stream a reply into botMessage, toContent turns the streamed text into its content
+    function streamReply(
+      session: ChatSession,
+      botMessage: ChatMessage,
+      sendMessages: ChatMessage[],
+      toContent: (text: string) => string,
+      userMessage?: ChatMessage,
+    ) {
+      const modelConfig = session.mask.modelConfig;
+      const api: ClientApi = getClientApi(modelConfig.providerName);
+      api.llm.chat({
+        messages: sendMessages,
+        config: { ...modelConfig, stream: true },
+        onUpdate(message) {
+          botMessage.streaming = true;
+          if (message) {
+            botMessage.content = toContent(message);
+          }
+          get().updateTargetSession(session, (session) => {
+            session.messages = session.messages.concat();
+          });
+        },
+        async onFinish(message) {
+          botMessage.streaming = false;
+          if (message) {
+            botMessage.content = toContent(message);
+            botMessage.date = new Date().toLocaleString();
+            get().onNewMessage(botMessage, session);
+          }
+          ChatControllerPool.remove(session.id, botMessage.id);
+        },
+        onBeforeTool(tool: ChatMessageTool) {
+          (botMessage.tools = botMessage?.tools || []).push(tool);
+          get().updateTargetSession(session, (session) => {
+            session.messages = session.messages.concat();
+          });
+        },
+        onAfterTool(tool: ChatMessageTool) {
+          botMessage?.tools?.forEach((t, i, tools) => {
+            if (tool.id == t.id) {
+              tools[i] = { ...tool };
+            }
+          });
+          get().updateTargetSession(session, (session) => {
+            session.messages = session.messages.concat();
+          });
+        },
+        onError(error) {
+          const isAborted = error.message?.includes?.("aborted");
+          botMessage.content +=
+            "\n\n" +
+            prettyObject({
+              error: true,
+              message: error.message,
+            });
+          botMessage.streaming = false;
+          if (userMessage) userMessage.isError = !isAborted;
+          botMessage.isError = !isAborted;
+          get().updateTargetSession(session, (session) => {
+            session.messages = session.messages.concat();
+          });
+          ChatControllerPool.remove(session.id, botMessage.id);
+
+          console.error("[Chat] failed ", error);
+        },
+        onController(controller) {
+          // collect controller for stop/retry
+          ChatControllerPool.addController(
+            session.id,
+            botMessage.id,
+            controller,
+          );
+        },
+      });
     }
 
     const methods = {
@@ -499,7 +578,6 @@ export const useChatStore = createPersistStore(
         // get recent messages
         const recentMessages = await get().getMessagesWithMemory();
         const sendMessages = recentMessages.concat(userMessage);
-        const messageIndex = session.messages.length + 1;
 
         // save user's and bot's message
         get().updateTargetSession(session, (session) => {
@@ -513,79 +591,59 @@ export const useChatStore = createPersistStore(
           ]);
         });
 
-        const api: ClientApi = getClientApi(modelConfig.providerName);
         // make request
-        api.llm.chat({
-          messages: await prepareAttachments(
+        streamReply(
+          session,
+          botMessage,
+          await prepareAttachments(
             sendMessages,
             modelConfig.model,
             modelConfig.providerName,
           ),
-          config: { ...modelConfig, stream: true },
-          onUpdate(message) {
-            botMessage.streaming = true;
-            if (message) {
-              botMessage.content = message;
-            }
-            get().updateTargetSession(session, (session) => {
-              session.messages = session.messages.concat();
-            });
-          },
-          async onFinish(message) {
-            botMessage.streaming = false;
-            if (message) {
-              botMessage.content = message;
-              botMessage.date = new Date().toLocaleString();
-              get().onNewMessage(botMessage, session);
-            }
-            ChatControllerPool.remove(session.id, botMessage.id);
-          },
-          onBeforeTool(tool: ChatMessageTool) {
-            (botMessage.tools = botMessage?.tools || []).push(tool);
-            get().updateTargetSession(session, (session) => {
-              session.messages = session.messages.concat();
-            });
-          },
-          onAfterTool(tool: ChatMessageTool) {
-            botMessage?.tools?.forEach((t, i, tools) => {
-              if (tool.id == t.id) {
-                tools[i] = { ...tool };
-              }
-            });
-            get().updateTargetSession(session, (session) => {
-              session.messages = session.messages.concat();
-            });
-          },
-          onError(error) {
-            const isAborted = error.message?.includes?.("aborted");
-            botMessage.content +=
-              "\n\n" +
-              prettyObject({
-                error: true,
-                message: error.message,
-              });
-            botMessage.streaming = false;
-            userMessage.isError = !isAborted;
-            botMessage.isError = !isAborted;
-            get().updateTargetSession(session, (session) => {
-              session.messages = session.messages.concat();
-            });
-            ChatControllerPool.remove(
-              session.id,
-              botMessage.id ?? messageIndex,
-            );
+          (text) => text,
+          userMessage,
+        );
+      },
 
-            console.error("[Chat] failed ", error);
-          },
-          onController(controller) {
-            // collect controller for stop/retry
-            ChatControllerPool.addController(
-              session.id,
-              botMessage.id ?? messageIndex,
-              controller,
-            );
-          },
+      /** ask the model to pick up a cut-off reply where it stopped, appending to it */
+      async continueMessage(messageId: string) {
+        const session = get().currentSession();
+        const modelConfig = session.mask.modelConfig;
+        const botMessage = session.messages.find((m) => m.id === messageId);
+        if (!botMessage) return;
+        const prefix = getMessageTextContent(botMessage);
+
+        const sendMessages = (await get().getMessagesWithMemory())
+          .filter((m) => m.id !== messageId)
+          .concat(
+            createMessage({
+              role: "assistant",
+              content: withoutThinking(prefix),
+            }),
+            createMessage({ role: "user", content: CONTINUE_PROMPT }),
+          );
+
+        get().updateTargetSession(session, () => {
+          botMessage.interrupted = false;
+          botMessage.streaming = true;
         });
+
+        streamReply(
+          session,
+          botMessage,
+          await prepareAttachments(
+            sendMessages,
+            modelConfig.model,
+            modelConfig.providerName,
+          ),
+          // the continuation thinks again first, which would land in the middle of the answer,
+          // so keep only what follows the "\n\n" that ends its thinking block (see streamWithThink)
+          (text) => {
+            if (!text.startsWith("> ")) return prefix + text;
+            const end = text.search(/\n\n(?!> )/);
+            return end === -1 ? prefix : prefix + text.slice(end + 2);
+          },
+        );
       },
 
       getMemoryPrompt() {

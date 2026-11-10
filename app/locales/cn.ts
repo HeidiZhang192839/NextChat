@@ -54,6 +54,7 @@ const cn = {
       Export: "导出聊天记录",
       Copy: "复制",
       Stop: "停止",
+      Continue: "继续",
       Retry: "重试",
       Pin: "固定",
       PinToastContent: "已将 1 条对话固定至预设提示词",

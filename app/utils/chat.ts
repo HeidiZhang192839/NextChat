@@ -14,8 +14,14 @@ import { prettyObject } from "./format";
 import { fetch as tauriFetch } from "./stream";
 
 const MAX_CONTINUATIONS = 3;
-const CONTINUE_PROMPT =
+export const CONTINUE_PROMPT =
   "Your previous reply was cut off. Continue exactly where it stopped. Do not repeat anything already written and do not add any preamble.";
+
+// a reply without its leading "> " thinking block (see isInThinkingMode in streamWithThink)
+export function withoutThinking(text: string) {
+  const thinkingEnd = text.startsWith("> ") ? text.search(/\n\n(?!> )/) : 0;
+  return thinkingEnd === -1 ? "" : text.slice(thinkingEnd).trim();
+}
 
 export function compressImage(file: Blob, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -199,14 +205,23 @@ export function removeImage(imageUrl: string) {
 }
 
 // holding a Web Lock exempts the tab from Chrome's background freezing,
-// returns the function that releases it
+// and asking before the page unloads guards against reloads that would cut the reply off,
+// returns the function that releases both
 function holdBackgroundLock() {
   let release = () => {};
   const released = new Promise<void>((resolve) => (release = resolve));
   navigator.locks
     ?.request(`chat-stream-${Date.now()}-${Math.random()}`, () => released)
     .catch(() => {});
-  return release;
+  const confirmLeave = (e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    e.returnValue = "";
+  };
+  window.addEventListener("beforeunload", confirmLeave);
+  return () => {
+    window.removeEventListener("beforeunload", confirmLeave);
+    release();
+  };
 }
 
 export function stream(
@@ -494,9 +509,7 @@ export function streamWithThink(
       return false;
     }
     continuations += 1;
-    // drop the leading "> " thinking block (see isInThinkingMode below)
-    const thinkingEnd = text.startsWith("> ") ? text.search(/\n\n(?!> )/) : 0;
-    const answer = thinkingEnd === -1 ? "" : text.slice(thinkingEnd).trim();
+    const answer = withoutThinking(text);
     // once the answer has started, a second round of thinking would land in the middle of it
     skipThinking = answer.length > 0;
     const messages = answer

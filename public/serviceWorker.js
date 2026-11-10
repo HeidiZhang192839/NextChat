@@ -4,6 +4,8 @@ let a="useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";let nan
 
 self.addEventListener("activate", function (event) {
   console.log("ServiceWorker activated.");
+  // take over open pages right away instead of waiting for them to reload
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("install", function (event) {

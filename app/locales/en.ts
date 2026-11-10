@@ -55,6 +55,7 @@ const en: LocaleType = {
       Export: "Export All Messages as Markdown",
       Copy: "Copy",
       Stop: "Stop",
+      Continue: "Continue",
       Retry: "Retry",
       Pin: "Pin",
       PinToastContent: "Pinned 1 messages to contextual prompts",
