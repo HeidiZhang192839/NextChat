@@ -364,7 +364,10 @@ export function showConfirm(content: any) {
             shadow
           ></IconButton>,
         ]}
-        onClose={closeModal}
+        onClose={() => {
+          resolve(false);
+          closeModal();
+        }}
       >
         {content}
       </Modal>,

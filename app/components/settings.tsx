@@ -505,12 +505,47 @@ function SyncItems() {
   }, [syncStore]);
 
   const [showSyncConfigModal, setShowSyncConfigModal] = useState(false);
+  const [cloudAction, setCloudAction] = useState<
+    "sync" | "upload" | "download" | "pullOtherDevice" | null
+  >(null);
+  const cloudBusy = cloudAction !== null;
+
+  async function runCloudAction(
+    action: NonNullable<typeof cloudAction>,
+    success = Locale.Settings.Sync.Success,
+    fail = Locale.Settings.Sync.Fail,
+    empty = Locale.Settings.Sync.Download.Empty,
+  ) {
+    if (cloudBusy) return;
+    setCloudAction(action);
+    try {
+      if (
+        action === "upload" &&
+        !(await showConfirm(Locale.Settings.Sync.Upload.Confirm))
+      ) {
+        return;
+      }
+      const found = await syncStore[action]();
+      showToast(found === false ? empty : success);
+    } catch (e) {
+      showToast(fail);
+      console.error(`[Sync] ${action}`, e);
+    } finally {
+      setCloudAction(null);
+    }
+  }
 
   const useGoogleDrive =
     couldSync && syncStore.provider === ProviderType.GoogleDrive;
   useEffect(() => {
     if (useGoogleDrive) loadGoogleSignIn().catch(() => {});
   }, [useGoogleDrive]);
+
+  const deviceBackup = useGoogleDrive
+    ? isMobileDevice()
+      ? Locale.Settings.Sync.DeviceBackup.Mobile
+      : Locale.Settings.Sync.DeviceBackup.Desktop
+    : "";
 
   const stateOverview = useMemo(() => {
     const sessions = chatStore.sessions;
@@ -542,27 +577,72 @@ function SyncItems() {
               aria={Locale.Settings.Sync.CloudState + Locale.UI.Config}
               icon={<ConfigIcon />}
               text={Locale.UI.Config}
+              disabled={cloudBusy}
               onClick={() => {
                 setShowSyncConfigModal(true);
               }}
             />
             {couldSync && (
               <IconButton
-                icon={<ResetIcon />}
+                icon={cloudAction === "sync" ? <LoadingIcon /> : <ResetIcon />}
                 text={Locale.UI.Sync}
-                onClick={async () => {
-                  try {
-                    await syncStore.sync();
-                    showToast(Locale.Settings.Sync.Success);
-                  } catch (e) {
-                    showToast(Locale.Settings.Sync.Fail);
-                    console.error("[Sync]", e);
-                  }
-                }}
+                disabled={cloudBusy}
+                onClick={() => runCloudAction("sync")}
               />
             )}
           </div>
         </ListItem>
+
+        {couldSync && (
+          <>
+            <ListItem
+              title={Locale.Settings.Sync.Upload.Title}
+              subTitle={[Locale.Settings.Sync.Upload.SubTitle, deviceBackup]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              <IconButton
+                icon={
+                  cloudAction === "upload" ? <LoadingIcon /> : <UploadIcon />
+                }
+                text={Locale.Settings.Sync.Upload.Action}
+                disabled={cloudBusy}
+                onClick={() =>
+                  runCloudAction(
+                    "upload",
+                    Locale.Settings.Sync.Upload.Success,
+                    Locale.Settings.Sync.Upload.Fail,
+                  )
+                }
+              />
+            </ListItem>
+            <ListItem
+              title={Locale.Settings.Sync.Download.Title}
+              subTitle={[Locale.Settings.Sync.Download.SubTitle, deviceBackup]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              <IconButton
+                icon={
+                  cloudAction === "download" ? (
+                    <LoadingIcon />
+                  ) : (
+                    <DownloadIcon />
+                  )
+                }
+                text={Locale.Settings.Sync.Download.Action}
+                disabled={cloudBusy}
+                onClick={() =>
+                  runCloudAction(
+                    "download",
+                    Locale.Settings.Sync.Download.Success,
+                    Locale.Settings.Sync.Download.Fail,
+                  )
+                }
+              />
+            </ListItem>
+          </>
+        )}
 
         {useGoogleDrive && (
           <ListItem
@@ -574,21 +654,23 @@ function SyncItems() {
             subTitle={Locale.Settings.Sync.PullOther.SubTitle}
           >
             <IconButton
-              icon={<DownloadIcon />}
+              icon={
+                cloudAction === "pullOtherDevice" ? (
+                  <LoadingIcon />
+                ) : (
+                  <DownloadIcon />
+                )
+              }
               text={Locale.Settings.Sync.PullOther.Action}
-              onClick={async () => {
-                try {
-                  const found = await syncStore.pullOtherDevice();
-                  showToast(
-                    found
-                      ? Locale.Settings.Sync.Success
-                      : Locale.Settings.Sync.PullOther.Empty,
-                  );
-                } catch (e) {
-                  showToast(Locale.Settings.Sync.Fail);
-                  console.error("[Sync]", e);
-                }
-              }}
+              disabled={cloudBusy}
+              onClick={() =>
+                runCloudAction(
+                  "pullOtherDevice",
+                  Locale.Settings.Sync.Success,
+                  Locale.Settings.Sync.Fail,
+                  Locale.Settings.Sync.PullOther.Empty,
+                )
+              }
             />
           </ListItem>
         )}
@@ -610,6 +692,7 @@ function SyncItems() {
               aria={Locale.Settings.Sync.LocalState + Locale.UI.Import}
               icon={<DownloadIcon />}
               text={Locale.UI.Import}
+              disabled={cloudBusy}
               onClick={() => {
                 syncStore.import();
               }}

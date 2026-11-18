@@ -94,13 +94,40 @@ export const useSyncStore = createPersistStore(
       return client;
     },
 
+    getSyncKey() {
+      const provider = get().provider;
+      return provider === ProviderType.GoogleDrive
+        ? deviceKey()
+        : get()[provider].username;
+    },
+
+    // Upload only: replace this device's backup without merging remote data.
+    async upload() {
+      await this.getClient().set(
+        this.getSyncKey(),
+        JSON.stringify(getLocalAppState()),
+      );
+      this.markSyncTime();
+    },
+
+    // Download only: merge into local data, never write the backup back.
+    async download() {
+      const remoteState = await this.getClient().get(this.getSyncKey());
+      if (!remoteState) return false;
+
+      const parsedRemoteState = JSON.parse(remoteState) as AppState;
+      const localState = JSON.parse(
+        JSON.stringify(getLocalAppState()),
+      ) as AppState;
+      mergeAppState(localState, parsedRemoteState);
+      setLocalAppState(localState);
+      this.markSyncTime();
+      return true;
+    },
+
     async sync() {
       const localState = getLocalAppState();
-      const provider = get().provider;
-      const key =
-        provider === ProviderType.GoogleDrive
-          ? deviceKey()
-          : get()[provider].username;
+      const key = this.getSyncKey();
       const client = this.getClient();
 
       try {

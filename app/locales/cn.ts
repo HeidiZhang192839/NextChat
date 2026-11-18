@@ -243,6 +243,27 @@ const cn = {
       Success: "同步成功",
       Fail: "同步失败",
 
+      Upload: {
+        Title: "上传到云端",
+        SubTitle: "用本地数据覆盖云端备份，不下载云端记录",
+        Action: "上传",
+        Confirm: "上传会用本地数据覆盖当前设备的云端备份，确定继续吗？",
+        Success: "上传成功",
+        Fail: "上传失败",
+      },
+      Download: {
+        Title: "从云端下载",
+        SubTitle: "合并到本地，保留已有聊天，不修改云端备份",
+        Action: "下载",
+        Success: "下载成功，已合并到本地",
+        Fail: "下载失败",
+        Empty: "云端还没有当前设备的备份，请先上传",
+      },
+      DeviceBackup: {
+        Mobile: "当前设备：手机（mobile.json）",
+        Desktop: "当前设备：电脑（desktop.json）",
+      },
+
       Config: {
         Modal: {
           Title: "配置云同步",

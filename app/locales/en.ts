@@ -246,6 +246,30 @@ const en: LocaleType = {
       Success: "Sync Success",
       Fail: "Sync Fail",
 
+      Upload: {
+        Title: "Upload to Cloud",
+        SubTitle:
+          "Replace the cloud backup with local data, without downloading",
+        Action: "Upload",
+        Confirm:
+          "Uploading replaces this device's cloud backup with local data. Continue?",
+        Success: "Upload successful",
+        Fail: "Upload failed",
+      },
+      Download: {
+        Title: "Download from Cloud",
+        SubTitle:
+          "Merge into local data, keeping existing chats and leaving the cloud backup untouched",
+        Action: "Download",
+        Success: "Downloaded and merged into local data",
+        Fail: "Download failed",
+        Empty: "No backup for this device yet. Upload one first.",
+      },
+      DeviceBackup: {
+        Mobile: "Current device: phone (mobile.json)",
+        Desktop: "Current device: computer (desktop.json)",
+      },
+
       Config: {
         Modal: {
           Title: "Config Sync",
