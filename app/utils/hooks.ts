@@ -1,19 +1,22 @@
 import { useMemo } from "react";
 import { useAccessStore, useAppConfig } from "../store";
 import { collectModelsWithDefaultModel } from "./model";
-import { channelCustomModels } from "./channel";
+import { channelCustomModels, sortChannelModels } from "./channel";
 
 export function getAllModels() {
   const accessStore = useAccessStore.getState();
   const configStore = useAppConfig.getState();
-  return collectModelsWithDefaultModel(
-    configStore.models,
-    [
-      configStore.customModels,
-      accessStore.customModels,
-      channelCustomModels(configStore.channels),
-    ].join(","),
-    accessStore.defaultModel,
+  return sortChannelModels(
+    collectModelsWithDefaultModel(
+      configStore.models,
+      [
+        configStore.customModels,
+        accessStore.customModels,
+        channelCustomModels(configStore.channels),
+      ].join(","),
+      accessStore.defaultModel,
+    ),
+    configStore.channels,
   );
 }
 

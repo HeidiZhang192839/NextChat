@@ -13,6 +13,24 @@ export function channelCustomModels(channels: Channel[]) {
     .join(",");
 }
 
+// the model table orders custom providers by when it first saw them, so put
+// the channel models back in channel order; other models keep their places
+export function sortChannelModels<
+  T extends { name: string; provider?: { providerName: string } },
+>(models: T[], channels: Channel[]) {
+  const rank = new Map(
+    channels
+      .flatMap((c) => c.models.map((m) => `${m}@${c.name}`))
+      .map((key, i) => [key, i]),
+  );
+  const rankOf = (m: T) => rank.get(`${m.name}@${m.provider?.providerName}`);
+  const ordered = models
+    .filter((m) => rankOf(m) !== undefined)
+    .sort((a, b) => rankOf(a)! - rankOf(b)!);
+  let next = 0;
+  return models.map((m) => (rankOf(m) === undefined ? m : ordered[next++]));
+}
+
 // returns an error kind, or "" if the name can be used
 export function validateChannelName(
   name: string,
