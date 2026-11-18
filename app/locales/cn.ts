@@ -272,6 +272,21 @@ const cn = {
           UserName: "备份名称",
           Password: "UpStash Redis REST Token",
         },
+
+        GoogleDrive: {
+          ClientId: {
+            Title: "OAuth 客户端 ID",
+            SubTitle: "在 Google Cloud Console 创建的“Web 应用”客户端 ID",
+          },
+        },
+      },
+
+      PullOther: {
+        Mobile: "手机端的聊天记录",
+        Desktop: "电脑端的聊天记录",
+        SubTitle: "合并到当前设备，不会改动对方的云端文件",
+        Action: "拉取",
+        Empty: "对方设备还没有同步过",
       },
 
       LocalState: "本地数据",

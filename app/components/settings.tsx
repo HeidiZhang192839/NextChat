@@ -68,6 +68,7 @@ import { useSyncStore } from "../store/sync";
 import { nanoid } from "nanoid";
 import { useMaskStore } from "../store/mask";
 import { ProviderType } from "../utils/cloud";
+import { isMobileDevice, loadGoogleSignIn } from "../utils/cloud/gdrive";
 import { TTSConfigList } from "./tts-config";
 import { RealtimeConfigList } from "./realtime-chat/realtime-config";
 import { ChannelConfigModal } from "./channel-config";
@@ -466,6 +467,29 @@ function SyncConfigModal(props: { onClose?: () => void }) {
             </ListItem>
           </List>
         )}
+
+        {syncStore.provider === ProviderType.GoogleDrive && (
+          <List>
+            <ListItem
+              title={Locale.Settings.Sync.Config.GoogleDrive.ClientId.Title}
+              subTitle={
+                Locale.Settings.Sync.Config.GoogleDrive.ClientId.SubTitle
+              }
+            >
+              <input
+                type="text"
+                value={syncStore.gdrive.clientId}
+                placeholder="xxx.apps.googleusercontent.com"
+                onChange={(e) => {
+                  syncStore.update(
+                    (config) =>
+                      (config.gdrive.clientId = e.currentTarget.value.trim()),
+                  );
+                }}
+              ></input>
+            </ListItem>
+          </List>
+        )}
       </Modal>
     </div>
   );
@@ -481,6 +505,12 @@ function SyncItems() {
   }, [syncStore]);
 
   const [showSyncConfigModal, setShowSyncConfigModal] = useState(false);
+
+  const useGoogleDrive =
+    couldSync && syncStore.provider === ProviderType.GoogleDrive;
+  useEffect(() => {
+    if (useGoogleDrive) loadGoogleSignIn().catch(() => {});
+  }, [useGoogleDrive]);
 
   const stateOverview = useMemo(() => {
     const sessions = chatStore.sessions;
@@ -533,6 +563,35 @@ function SyncItems() {
             )}
           </div>
         </ListItem>
+
+        {useGoogleDrive && (
+          <ListItem
+            title={
+              isMobileDevice()
+                ? Locale.Settings.Sync.PullOther.Desktop
+                : Locale.Settings.Sync.PullOther.Mobile
+            }
+            subTitle={Locale.Settings.Sync.PullOther.SubTitle}
+          >
+            <IconButton
+              icon={<DownloadIcon />}
+              text={Locale.Settings.Sync.PullOther.Action}
+              onClick={async () => {
+                try {
+                  const found = await syncStore.pullOtherDevice();
+                  showToast(
+                    found
+                      ? Locale.Settings.Sync.Success
+                      : Locale.Settings.Sync.PullOther.Empty,
+                  );
+                } catch (e) {
+                  showToast(Locale.Settings.Sync.Fail);
+                  console.error("[Sync]", e);
+                }
+              }}
+            />
+          </ListItem>
+        )}
 
         <ListItem
           title={Locale.Settings.Sync.LocalState}

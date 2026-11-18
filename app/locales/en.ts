@@ -276,6 +276,23 @@ const en: LocaleType = {
           UserName: "Backup Name",
           Password: "UpStash Redis REST Token",
         },
+
+        GoogleDrive: {
+          ClientId: {
+            Title: "OAuth Client ID",
+            SubTitle:
+              'A "Web application" client ID created in Google Cloud Console',
+          },
+        },
+      },
+
+      PullOther: {
+        Mobile: "Chats from your phone",
+        Desktop: "Chats from your computer",
+        SubTitle:
+          "Merge them into this device, the other device's cloud file stays untouched",
+        Action: "Pull",
+        Empty: "The other device has not synced yet",
       },
 
       LocalState: "Local Data",

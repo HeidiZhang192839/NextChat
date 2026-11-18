@@ -1,14 +1,17 @@
 import { createWebDavClient } from "./webdav";
 import { createUpstashClient } from "./upstash";
+import { createGDriveClient } from "./gdrive";
 
 export enum ProviderType {
   WebDAV = "webdav",
   UpStash = "upstash",
+  GoogleDrive = "gdrive",
 }
 
 export const SyncClients = {
   [ProviderType.UpStash]: createUpstashClient,
   [ProviderType.WebDAV]: createWebDavClient,
+  [ProviderType.GoogleDrive]: createGDriveClient,
 } as const;
 
 type SyncClientConfig = {

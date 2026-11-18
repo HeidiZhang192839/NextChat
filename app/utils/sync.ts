@@ -62,7 +62,7 @@ type StateMerger = {
 };
 
 // we merge remote state to local state
-const MergeStates: StateMerger = {
+export const MergeStates: StateMerger = {
   [StoreKey.Chat]: (localState, remoteState) => {
     // merge sessions
     const localSessions: Record<string, ChatSession> = {};

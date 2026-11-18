@@ -6,12 +6,14 @@ import {
   getLocalAppState,
   GetStoreState,
   mergeAppState,
+  MergeStates,
   setLocalAppState,
 } from "../utils/sync";
 import { downloadAs, readFromFile } from "../utils";
 import { showToast } from "../components/ui-lib";
 import Locale from "../locales";
 import { createSyncClient, ProviderType } from "../utils/cloud";
+import { deviceKey, isMobileDevice } from "../utils/cloud/gdrive";
 
 export interface WebDavConfig {
   server: string;
@@ -37,6 +39,10 @@ const DEFAULT_SYNC_STATE = {
     endpoint: "",
     username: STORAGE_KEY,
     apiKey: "",
+  },
+
+  gdrive: {
+    clientId: "",
   },
 
   lastSyncTime: 0,
@@ -91,20 +97,23 @@ export const useSyncStore = createPersistStore(
     async sync() {
       const localState = getLocalAppState();
       const provider = get().provider;
-      const config = get()[provider];
+      const key =
+        provider === ProviderType.GoogleDrive
+          ? deviceKey()
+          : get()[provider].username;
       const client = this.getClient();
 
       try {
-        const remoteState = await client.get(config.username);
+        const remoteState = await client.get(key);
         if (!remoteState || remoteState === "") {
-          await client.set(config.username, JSON.stringify(localState));
+          await client.set(key, JSON.stringify(localState));
           console.log(
             "[Sync] Remote state is empty, using local state instead.",
           );
           return;
         } else {
           const parsedRemoteState = JSON.parse(
-            await client.get(config.username),
+            await client.get(key),
           ) as AppState;
           mergeAppState(localState, parsedRemoteState);
           setLocalAppState(localState);
@@ -114,9 +123,25 @@ export const useSyncStore = createPersistStore(
         throw e;
       }
 
-      await client.set(config.username, JSON.stringify(localState));
+      await client.set(key, JSON.stringify(localState));
 
       this.markSyncTime();
+    },
+
+    // merge the chats saved by the other device (phone <-> computer) into this one
+    async pullOtherDevice() {
+      const remoteState = await this.getClient().get(
+        deviceKey(!isMobileDevice()),
+      );
+      if (!remoteState) return false;
+
+      const localState = getLocalAppState();
+      MergeStates[StoreKey.Chat](
+        localState[StoreKey.Chat],
+        (JSON.parse(remoteState) as AppState)[StoreKey.Chat],
+      );
+      setLocalAppState(localState);
+      return true;
     },
 
     async check() {
