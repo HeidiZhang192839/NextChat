@@ -2,10 +2,19 @@ import { useMemo, useState } from "react";
 import { nanoid } from "nanoid";
 import clsx from "clsx";
 
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DraggableProvided,
+  OnDragEndResponder,
+} from "@hello-pangea/dnd";
+
 import styles from "./channel-config.module.scss";
 
 import AddIcon from "../icons/add.svg";
 import ClearIcon from "../icons/clear.svg";
+import DragIcon from "../icons/drag.svg";
 import EditIcon from "../icons/edit.svg";
 import ConfirmIcon from "../icons/confirm.svg";
 import DownloadIcon from "../icons/download.svg";
@@ -283,9 +292,23 @@ function ChannelRow(props: {
   url: string;
   onEdit: () => void;
   onDelete?: () => void;
+  drag?: DraggableProvided;
+  dragging?: boolean;
 }) {
   return (
-    <div className={styles["channel-item"]}>
+    <div
+      className={clsx(styles["channel-item"], {
+        [styles["channel-item-dragging"]]: props.dragging,
+      })}
+      ref={props.drag?.innerRef}
+      {...props.drag?.draggableProps}
+      {...props.drag?.dragHandleProps}
+    >
+      {props.drag && (
+        <div className={styles["channel-drag"]}>
+          <DragIcon />
+        </div>
+      )}
       <div className={styles["channel-header"]}>
         <div className={styles["channel-name"]}>{props.name}</div>
         <div className={styles["channel-url"]}>{props.url}</div>
@@ -579,6 +602,14 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
     }
   };
 
+  const onDragEnd: OnDragEndResponder = ({ source, destination }) => {
+    if (!destination || destination.index === source.index) return;
+    config.update((config) => {
+      const [moved] = config.channels.splice(source.index, 1);
+      config.channels.splice(destination.index, 0, moved);
+    });
+  };
+
   return (
     <div className="modal-mask">
       <Modal
@@ -636,15 +667,33 @@ export function ChannelConfigModal(props: { onClose: () => void }) {
                   setTab("model");
                 }}
               />
-              {config.channels.map((c) => (
-                <ChannelRow
-                  key={c.id}
-                  name={`${c.name} · ${channelTypeInfo(c).label()}`}
-                  url={c.url}
-                  onEdit={() => setEditingChannel(c)}
-                  onDelete={() => deleteChannel(c)}
-                />
-              ))}
+              {config.channels.length > 0 && (
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <Droppable droppableId="channel-list">
+                    {(provided) => (
+                      <div ref={provided.innerRef} {...provided.droppableProps}>
+                        {config.channels.map((c, i) => (
+                          <Draggable draggableId={c.id} index={i} key={c.id}>
+                            {(provided, snapshot) => (
+                              <ChannelRow
+                                name={`${c.name} · ${channelTypeInfo(
+                                  c,
+                                ).label()}`}
+                                url={c.url}
+                                onEdit={() => setEditingChannel(c)}
+                                onDelete={() => deleteChannel(c)}
+                                drag={provided}
+                                dragging={snapshot.isDragging}
+                              />
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              )}
             </div>
           ) : (
             <>

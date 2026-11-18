@@ -35,7 +35,21 @@
       border-bottom: var(--border-in-light);
     }
 
+    // opaque, so the dragged row covers the rows it passes over
+    &.channel-item-dragging {
+      background-color: var(--white);
+      box-shadow: var(--card-shadow);
+    }
+
+    .channel-drag {
+      display: flex;
+      align-items: center;
+      margin-right: 10px;
+      opacity: 0.5;
+    }
+
     .channel-header {
+      flex: 1;
       min-width: 0;
 
       .channel-name {
