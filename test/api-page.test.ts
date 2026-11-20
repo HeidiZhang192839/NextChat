@@ -3,7 +3,11 @@
  */
 import { jest } from "@jest/globals";
 
-jest.mock("@/app/locales", () => ({
+jest.mock("../app/locales", () => ({
+  __esModule: true,
+  default: { Error: { Unauthorized: "Unauthorized" } },
+}));
+jest.unstable_mockModule("@/app/locales", () => ({
   __esModule: true,
   default: { Error: { Unauthorized: "Unauthorized" } },
 }));
