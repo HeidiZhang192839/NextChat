@@ -3,6 +3,11 @@
  */
 import { jest } from "@jest/globals";
 
+jest.mock("@/app/locales", () => ({
+  __esModule: true,
+  default: { Error: { Unauthorized: "Unauthorized" } },
+}));
+
 test("detects challenge pages and points to the configured API origin", async () => {
   Object.assign(globalThis, { window: {} });
   const { ApiPageError, checkApiResponse } = await import("../app/utils/api-page");
@@ -49,7 +54,6 @@ test("a challenge in a streaming chat fails without retrying the request", async
     headers: { "content-type": "text/html" },
   });
   const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(response);
-  await import("../app/store");
   const { streamWithThink } = await import("../app/utils/chat");
   Object.assign(globalThis, {
     window: {

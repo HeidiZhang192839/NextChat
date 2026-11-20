@@ -4,7 +4,7 @@ import {
   REQUEST_TIMEOUT_MS,
   REQUEST_TIMEOUT_MS_FOR_THINKING,
 } from "@/app/constant";
-import { MultimodalContent, RequestMessage } from "@/app/client/api";
+import type { MultimodalContent, RequestMessage } from "@/app/client/api";
 import Locale from "@/app/locales";
 import {
   EventStreamContentType,
