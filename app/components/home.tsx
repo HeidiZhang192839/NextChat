@@ -31,6 +31,7 @@ import { useAccessStore } from "../store";
 import clsx from "clsx";
 import { initializeMcpSystem, isMcpEnabled } from "../mcp/actions";
 import { useModelCapsTesting } from "../utils/model-caps";
+import { showApiPageError } from "./api-page-modal";
 
 export function Loading(props: { noLogo?: boolean }) {
   return (
@@ -230,8 +231,12 @@ export function useLoadData() {
 
   useEffect(() => {
     (async () => {
-      const models = await api.llm.models();
-      config.mergeModels(models);
+      try {
+        const models = await api.llm.models();
+        config.mergeModels(models);
+      } catch (error) {
+        showApiPageError(error);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

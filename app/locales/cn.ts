@@ -15,7 +15,17 @@ const cn = {
        \ 1️⃣ 想要零配置开箱即用，[点击这里立刻开启对话 🚀](${SAAS_CHAT_UTM_URL})
        \ 2️⃣ 如果你正在使用私有部署版本，点击[这里](/#/auth)输入访问秘钥 🔑
        \ 3️⃣ 如果你想消耗自己的 OpenAI 资源，点击[这里](/#/settings)修改设置 ⚙️
-       `,
+        `,
+    ApiPage: {
+      Title: "API 返回了网页",
+      Challenge: "服务商要求进行浏览器安全验证。",
+      Html: "API 返回了网页而不是接口数据，可能需要浏览器验证，也可能是 API 地址填错了。",
+      OpenSite: "打开服务商网站",
+      VerifyAndRetry: "如果网站显示验证，请手动完成，再回到 NextChat 重试。",
+      ExternalRequest:
+        "浏览器验证不会应用到服务端代理或桌面客户端发出的请求。请向服务商确认可供 API 客户端使用的地址。",
+      CheckEndpoint: "请检查 API 地址，或联系服务商获取支持的 API 地址。",
+    },
   },
   Auth: {
     Return: "返回",

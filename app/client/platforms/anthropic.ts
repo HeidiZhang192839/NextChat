@@ -14,6 +14,7 @@ import { preProcessImageContent, stream } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import { checkApiResponse } from "@/app/utils/api-page";
 import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 
 export type MultiBlockContent = {
@@ -358,6 +359,7 @@ export class ClaudeApi implements LLMApi {
           options.onFinish("", new Response(null, { status: 400 }));
 
         const res = await fetch(path, payload);
+        checkApiResponse(res, path, headers);
         const resJson = await res.json();
 
         const message = this.extractMessage(resJson);

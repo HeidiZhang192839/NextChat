@@ -39,6 +39,8 @@ import { collectModels } from "../utils/model";
 import { capsLabel, queueModelTest } from "../utils/model-caps";
 import { getModelCaps } from "../utils";
 import { fetch } from "../utils/stream";
+import { checkApiResponse } from "../utils/api-page";
+import { showApiPageError } from "./api-page-modal";
 import {
   AZURE_DEFAULT_API_VERSION,
   channelHeaders,
@@ -506,13 +508,16 @@ function ChannelModels(props: { channel: Channel }) {
   const fetchModels = async () => {
     setFetching(true);
     try {
-      const path = isGoogle
+      const modelPath = isGoogle
         ? "v1beta/models?pageSize=1000"
         : OpenaiPath.ListModelPath; // anthropic uses the same path and shape
-      const res = await fetch(channelPath(channel, path), {
+      const path = channelPath(channel, modelPath);
+      const headers = channelHeaders(channel);
+      const res = await fetch(path, {
         method: "GET",
-        headers: channelHeaders(channel),
+        headers,
       });
+      checkApiResponse(res, path, headers);
       if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
       const json = await res.json();
       setFetched(
@@ -526,9 +531,11 @@ function ChannelModels(props: { channel: Channel }) {
           : (json as OpenAIListModelResponse).data.map((m) => m.id),
       );
     } catch (e) {
-      showToast(
-        Locale.Settings.Channel.Models.FetchFailed((e as Error).message),
-      );
+      if (!showApiPageError(e)) {
+        showToast(
+          Locale.Settings.Channel.Models.FetchFailed((e as Error).message),
+        );
+      }
     } finally {
       setFetching(false);
     }

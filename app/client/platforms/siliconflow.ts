@@ -31,6 +31,7 @@ import {
 import { RequestPayload } from "./openai";
 
 import { fetch } from "@/app/utils/stream";
+import { checkApiResponse } from "@/app/utils/api-page";
 export interface SiliconFlowListModelResponse {
   object: string;
   data: Array<{
@@ -266,6 +267,7 @@ export class SiliconflowApi implements LLMApi {
       },
     });
 
+    checkApiResponse(res, this.path(SiliconFlow.ListModelPath), getHeaders());
     const resJson = (await res.json()) as SiliconFlowListModelResponse;
     const chatModels = resJson.data;
     console.log("[Models]", chatModels);

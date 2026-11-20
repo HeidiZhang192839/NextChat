@@ -2,6 +2,7 @@
 // see src-tauri/src/stream.rs, and src-tauri/src/main.rs
 // 1. invoke('stream_fetch', {url, method, headers, body}), get response with headers.
 // 2. listen event: `stream-response` multi times to get body
+import { ApiPageError, checkApiResponse } from "./api-page";
 
 type ResponseEvent = {
   id: number;
@@ -96,13 +97,18 @@ export function fetch(url: string, options?: RequestInit): Promise<Response> {
         if (status >= 300) {
           setTimeout(close, 100);
         }
+        checkApiResponse(response, url, _headers);
         return response;
       })
       .catch((e) => {
+        if (e instanceof ApiPageError) throw e;
         console.error("stream error", e);
         // throw e;
         return new Response("", { status: 599 });
       });
   }
-  return window.fetch(url, options);
+  return window.fetch(url, options).then((response) => {
+    checkApiResponse(response, url, options?.headers);
+    return response;
+  });
 }

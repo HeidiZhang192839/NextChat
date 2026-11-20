@@ -16,7 +16,19 @@ const en: LocaleType = {
      \ 1️⃣ New here? [Click to start chatting now 🚀](${SAAS_CHAT_UTM_URL})
      \ 2️⃣ Using a private setup? [Click here](/#/auth) to enter your key 🔑
      \ 3️⃣ Want to use your own OpenAI resources? [Click here](/#/settings) to change settings ⚙️
-     `,
+      `,
+    ApiPage: {
+      Title: "The API returned a web page",
+      Challenge: "The provider requires a browser security check.",
+      Html: "The API returned a web page instead of API data. The provider may require verification, or the API URL may be incorrect.",
+      OpenSite: "Open provider website",
+      VerifyAndRetry:
+        "If the site asks you to verify, complete the check, then return to NextChat and try again.",
+      ExternalRequest:
+        "Browser verification does not apply to requests from the server proxy or desktop client. Ask the provider for a supported API URL.",
+      CheckEndpoint:
+        "Check the API URL or contact the provider for a supported endpoint.",
+    },
   },
   Auth: {
     Return: "Return",

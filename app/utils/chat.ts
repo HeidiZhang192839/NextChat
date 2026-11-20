@@ -12,6 +12,7 @@ import {
 } from "@fortaine/fetch-event-source";
 import { prettyObject } from "./format";
 import { fetch as tauriFetch } from "./stream";
+import { ApiPageError, checkApiResponse } from "./api-page";
 
 const MAX_CONTINUATIONS = 3;
 export const CONTINUE_PROMPT =
@@ -242,6 +243,7 @@ export function stream(
   let responseText = "";
   let remainText = "";
   let finished = false;
+  let failed = false;
   let running = false;
   let runTools: any[] = [];
   let responseRes: Response;
@@ -257,6 +259,7 @@ export function stream(
 
   // animate response to make it looks smooth
   function animateResponseText() {
+    if (failed) return;
     if (finished || controller.signal.aborted) {
       responseText += remainText;
       console.log("[Response Animation] finished");
@@ -386,6 +389,7 @@ export function stream(
       ...chatPayload,
       async onopen(res) {
         clearTimeout(requestTimeoutId);
+        checkApiResponse(res, chatPath, headers);
         const contentType = res.headers.get("content-type");
         console.log("[Request] response content type: ", contentType);
         responseRes = res;
@@ -445,11 +449,14 @@ export function stream(
         finish();
       },
       onerror(e) {
-        releaseLock();
-        options?.onError?.(e);
-        throw e;
+        throw e; // do not resend the request
       },
       openWhenHidden: true,
+    }).catch((error) => {
+      clearTimeout(requestTimeoutId);
+      failed = finished = true;
+      releaseLock();
+      options.onError?.(error);
     });
   }
   console.debug("[ChatAPI] start");
@@ -480,6 +487,7 @@ export function streamWithThink(
   let responseText = "";
   let remainText = "";
   let finished = false;
+  let failed = false;
   let running = false;
   let runTools: any[] = [];
   let responseRes: Response;
@@ -606,6 +614,7 @@ export function streamWithThink(
 
   // animate response to make it looks smooth
   function animateResponseText() {
+    if (failed) return;
     if (finished || controller.signal.aborted) {
       responseText += remainText;
       console.log("[Response Animation] finished");
@@ -765,6 +774,7 @@ export function streamWithThink(
       ...chatPayload,
       async onopen(res) {
         clearTimeout(requestTimeoutId);
+        checkApiResponse(res, chatPath, headers);
         const contentType = res.headers.get("content-type");
         console.log("[Request] response content type: ", contentType);
         responseRes = res;
@@ -837,12 +847,15 @@ export function streamWithThink(
       },
       onerror(e) {
         // throwing stops fetchEventSource's own retry, which would resend the original request
-        if (tryContinue()) throw e;
-        releaseLock();
-        options?.onError?.(e);
         throw e;
       },
       openWhenHidden: true,
+    }).catch((error) => {
+      clearTimeout(requestTimeoutId);
+      if (!(error instanceof ApiPageError) && tryContinue()) return;
+      failed = finished = true;
+      releaseLock();
+      options.onError?.(error);
     });
   }
   console.debug("[ChatAPI] start");

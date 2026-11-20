@@ -16,6 +16,7 @@ import type {
 import { getClientApi } from "../client/api";
 import { ChatControllerPool } from "../client/controller";
 import { showToast } from "../components/ui-lib";
+import { showApiPageError } from "../components/api-page-modal";
 import {
   DEFAULT_INPUT_TEMPLATE,
   DEFAULT_MODELS,
@@ -320,6 +321,7 @@ export const useChatStore = createPersistStore(
           });
           ChatControllerPool.remove(session.id, botMessage.id);
 
+          showApiPageError(error);
           console.error("[Chat] failed ", error);
         },
         onController(controller) {

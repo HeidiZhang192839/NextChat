@@ -51,6 +51,7 @@ import {
   getTimeoutMSByModel,
 } from "@/app/utils";
 import { fetch } from "@/app/utils/stream";
+import { checkApiResponse } from "@/app/utils/api-page";
 
 export interface OpenAIListModelResponse {
   object: string;
@@ -435,6 +436,7 @@ export class ChatGPTApi implements LLMApi {
         const res = await fetch(chatPath, chatPayload);
         clearTimeout(requestTimeoutId);
 
+        checkApiResponse(res, chatPath, headers);
         const resJson = await res.json();
         const message = await this.extractMessage(resJson);
         options.onFinish(message, res);
@@ -522,6 +524,7 @@ export class ChatGPTApi implements LLMApi {
       },
     });
 
+    checkApiResponse(res, this.path(OpenaiPath.ListModelPath), getHeaders());
     const resJson = (await res.json()) as OpenAIListModelResponse;
     const chatModels = resJson.data?.filter(
       (m) => m.id.startsWith("gpt-") || m.id.startsWith("chatgpt-"),

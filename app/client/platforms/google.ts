@@ -30,6 +30,7 @@ import { preProcessImageContent } from "@/app/utils/chat";
 import { nanoid } from "nanoid";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import { checkApiResponse } from "@/app/utils/api-page";
 import { channelHeaders, channelPath, findChannel } from "@/app/utils/channel";
 
 export class GeminiProApi implements LLMApi {
@@ -314,6 +315,7 @@ export class GeminiProApi implements LLMApi {
       } else {
         const res = await fetch(chatPath, chatPayload);
         clearTimeout(requestTimeoutId);
+        checkApiResponse(res, chatPath, headers);
         const resJson = await res.json();
         if (resJson?.promptFeedback?.blockReason) {
           // being blocked

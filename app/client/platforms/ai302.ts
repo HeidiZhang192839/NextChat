@@ -26,6 +26,7 @@ import {
 import { RequestPayload } from "./openai";
 
 import { fetch } from "@/app/utils/stream";
+import { checkApiResponse } from "@/app/utils/api-page";
 export interface Ai302ListModelResponse {
   object: string;
   data: Array<{
@@ -258,6 +259,7 @@ export class Ai302Api implements LLMApi {
       },
     });
 
+    checkApiResponse(res, this.path(AI302.ListModelPath), getHeaders());
     const resJson = (await res.json()) as Ai302ListModelResponse;
     const chatModels = resJson.data;
     console.log("[Models]", chatModels);
