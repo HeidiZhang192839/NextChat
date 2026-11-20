@@ -86,7 +86,7 @@ export function fetch(url: string, options?: RequestInit): Promise<Response> {
             ? Array.from(new TextEncoder().encode(body))
             : [],
       })
-      .then((res: StreamResponse) => {
+      .then(async (res: StreamResponse) => {
         const { request_id, status, status_text: statusText, headers } = res;
         setRequestId?.(request_id);
         const response = new Response(ts.readable, {
@@ -97,7 +97,7 @@ export function fetch(url: string, options?: RequestInit): Promise<Response> {
         if (status >= 300) {
           setTimeout(close, 100);
         }
-        checkApiResponse(response, url, _headers);
+        await checkApiResponse(response, url, _headers);
         return response;
       })
       .catch((e) => {
@@ -107,8 +107,8 @@ export function fetch(url: string, options?: RequestInit): Promise<Response> {
         return new Response("", { status: 599 });
       });
   }
-  return window.fetch(url, options).then((response) => {
-    checkApiResponse(response, url, options?.headers);
+  return window.fetch(url, options).then(async (response) => {
+    await checkApiResponse(response, url, options?.headers);
     return response;
   });
 }

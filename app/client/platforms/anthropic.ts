@@ -359,7 +359,7 @@ export class ClaudeApi implements LLMApi {
           options.onFinish("", new Response(null, { status: 400 }));
 
         const res = await fetch(path, payload);
-        checkApiResponse(res, path, headers);
+        await checkApiResponse(res, path, headers);
         const resJson = await res.json();
 
         const message = this.extractMessage(resJson);

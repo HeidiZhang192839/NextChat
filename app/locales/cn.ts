@@ -18,6 +18,11 @@ const cn = {
         `,
     ApiPage: {
       Title: "API 返回了网页",
+      Preview: "返回的网页预览",
+      Source: "查看完整原始响应",
+      EmptyBody: "响应内容为空。",
+      ReadFailed: "无法读取响应内容，请重试。",
+      CopyResponse: "复制原始响应",
       Challenge: "服务商要求进行浏览器安全验证。",
       Html: "API 返回了网页而不是接口数据，可能需要浏览器验证，也可能是 API 地址填错了。",
       OpenSite: "打开服务商网站",

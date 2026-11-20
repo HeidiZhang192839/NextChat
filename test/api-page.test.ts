@@ -16,7 +16,7 @@ test("detects challenge pages and points to the configured API origin", async ()
   Object.assign(globalThis, { window: {} });
   const { ApiPageError, checkApiResponse } = await import("../app/utils/api-page");
 
-  expect(() =>
+  await expect(
     checkApiResponse(
       new Response("challenge", {
         headers: {
@@ -27,10 +27,10 @@ test("detects challenge pages and points to the configured API origin", async ()
       "/api/proxy/v1/models",
       { "X-Base-URL": "https://api.example.com/v1" },
     ),
-  ).toThrow(ApiPageError);
+  ).rejects.toThrow(ApiPageError);
 
   try {
-    checkApiResponse(
+    await checkApiResponse(
       new Response("challenge", {
         headers: { "content-type": "text/html" },
       }),
@@ -49,8 +49,51 @@ test("HTML API bodies are not surfaced as model data", async () => {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 
-  expect(() => checkApiResponse(response, "https://api.example.com/v1/models"))
-    .toThrow("web page");
+  await expect(
+    checkApiResponse(response, "https://api.example.com/v1/models"),
+  ).rejects.toThrow("web page");
+});
+
+test("keeps the complete original HTML without consuming the response", async () => {
+  Object.assign(globalThis, { window: {} });
+  const { checkApiResponse } = await import("../app/utils/api-page");
+  const body = `<!doctype html><html><body>${"验证页面\n".repeat(20000)}END</body></html>`;
+  const response = new Response(body, {
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
+
+  await expect(
+    checkApiResponse(response, "https://api.example.com/v1/models"),
+  ).rejects.toMatchObject({ body });
+  expect(response.bodyUsed).toBe(false);
+  expect(await response.text()).toBe(body);
+});
+
+test("leaves ordinary API data readable", async () => {
+  const { checkApiResponse } = await import("../app/utils/api-page");
+  const response = Response.json({ data: [] });
+
+  await expect(
+    checkApiResponse(response, "https://api.example.com/v1/models"),
+  ).resolves.toBeUndefined();
+  expect(await response.json()).toEqual({ data: [] });
+});
+
+test("still reports a web page if reading its body fails", async () => {
+  Object.assign(globalThis, { window: {} });
+  const { ApiPageError, checkApiResponse } = await import("../app/utils/api-page");
+  const response = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.error(new Error("Connection interrupted"));
+      },
+    }),
+    { headers: { "cf-mitigated": "challenge" } },
+  );
+
+  await expect(
+    checkApiResponse(response, "https://api.example.com/v1/models"),
+  ).rejects.toBeInstanceOf(ApiPageError);
 });
 
 test("a challenge in a streaming chat fails without retrying the request", async () => {
@@ -87,6 +130,9 @@ test("a challenge in a streaming chat fails without retrying the request", async
   });
 
   expect(fetchMock).toHaveBeenCalledTimes(1);
-  expect(onError.mock.calls[0][0]).toMatchObject({ browserRequest: true });
+  expect(onError.mock.calls[0][0]).toMatchObject({
+    browserRequest: true,
+    body: "<html>verify</html>",
+  });
   expect(onFinish).not.toHaveBeenCalled();
 });

@@ -19,6 +19,11 @@ const en: LocaleType = {
       `,
     ApiPage: {
       Title: "The API returned a web page",
+      Preview: "Returned page preview",
+      Source: "View complete raw response",
+      EmptyBody: "The response body is empty.",
+      ReadFailed: "Unable to read the response body. Please try again.",
+      CopyResponse: "Copy raw response",
       Challenge: "The provider requires a browser security check.",
       Html: "The API returned a web page instead of API data. The provider may require verification, or the API URL may be incorrect.",
       OpenSite: "Open provider website",

@@ -3,6 +3,7 @@ export class ApiPageError extends Error {
     public site: string | undefined,
     public browserRequest: boolean,
     public challenge: boolean,
+    public body?: string,
   ) {
     super(
       challenge
@@ -12,7 +13,7 @@ export class ApiPageError extends Error {
   }
 }
 
-export function checkApiResponse(
+export async function checkApiResponse(
   response: Response,
   path: string,
   headers?: HeadersInit,
@@ -33,6 +34,10 @@ export function checkApiResponse(
     apiOrigin(endpoint),
     endpoint === path && !window.__TAURI__,
     challenge,
+    await response
+      .clone()
+      .text()
+      .catch(() => undefined),
   );
 }
 

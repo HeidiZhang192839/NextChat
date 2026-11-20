@@ -259,7 +259,7 @@ export class Ai302Api implements LLMApi {
       },
     });
 
-    checkApiResponse(res, this.path(AI302.ListModelPath), getHeaders());
+    await checkApiResponse(res, this.path(AI302.ListModelPath), getHeaders());
     const resJson = (await res.json()) as Ai302ListModelResponse;
     const chatModels = resJson.data;
     console.log("[Models]", chatModels);

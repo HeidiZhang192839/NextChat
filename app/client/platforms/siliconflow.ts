@@ -267,7 +267,11 @@ export class SiliconflowApi implements LLMApi {
       },
     });
 
-    checkApiResponse(res, this.path(SiliconFlow.ListModelPath), getHeaders());
+    await checkApiResponse(
+      res,
+      this.path(SiliconFlow.ListModelPath),
+      getHeaders(),
+    );
     const resJson = (await res.json()) as SiliconFlowListModelResponse;
     const chatModels = resJson.data;
     console.log("[Models]", chatModels);

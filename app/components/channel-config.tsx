@@ -517,7 +517,7 @@ function ChannelModels(props: { channel: Channel }) {
         method: "GET",
         headers,
       });
-      checkApiResponse(res, path, headers);
+      await checkApiResponse(res, path, headers);
       if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
       const json = await res.json();
       setFetched(

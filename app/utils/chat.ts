@@ -389,7 +389,7 @@ export function stream(
       ...chatPayload,
       async onopen(res) {
         clearTimeout(requestTimeoutId);
-        checkApiResponse(res, chatPath, headers);
+        await checkApiResponse(res, chatPath, headers);
         const contentType = res.headers.get("content-type");
         console.log("[Request] response content type: ", contentType);
         responseRes = res;
@@ -774,7 +774,7 @@ export function streamWithThink(
       ...chatPayload,
       async onopen(res) {
         clearTimeout(requestTimeoutId);
-        checkApiResponse(res, chatPath, headers);
+        await checkApiResponse(res, chatPath, headers);
         const contentType = res.headers.get("content-type");
         console.log("[Request] response content type: ", contentType);
         responseRes = res;

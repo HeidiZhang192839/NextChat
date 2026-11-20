@@ -315,7 +315,7 @@ export class GeminiProApi implements LLMApi {
       } else {
         const res = await fetch(chatPath, chatPayload);
         clearTimeout(requestTimeoutId);
-        checkApiResponse(res, chatPath, headers);
+        await checkApiResponse(res, chatPath, headers);
         const resJson = await res.json();
         if (resJson?.promptFeedback?.blockReason) {
           // being blocked
