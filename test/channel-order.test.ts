@@ -64,4 +64,16 @@ describe("channel order in the model list", () => {
       builtin,
     );
   });
+
+  test("malformed channel model lists do not break model discovery", () => {
+    useAppConfig.setState({
+      channels: [
+        channel("Valid", ["v1"]),
+        { ...channel("Legacy", []), models: "m1,m2" as unknown as string[] },
+        { ...channel("Invalid", []), models: null as unknown as string[] },
+      ],
+    });
+
+    expect(channelModels()).toEqual(["v1@Valid", "m1@Legacy", "m2@Legacy"]);
+  });
 });

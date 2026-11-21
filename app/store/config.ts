@@ -44,6 +44,30 @@ export type Channel = {
   useProxy?: boolean; // web only, missing means on unless the url is local
 };
 
+export function normalizeChannels(channels: unknown): Channel[] {
+  if (!Array.isArray(channels)) return [];
+
+  return channels.flatMap((channel) => {
+    if (!channel || typeof channel !== "object" || Array.isArray(channel)) {
+      return [];
+    }
+
+    const value = channel as Record<string, unknown>;
+    const models = Array.isArray(value.models)
+      ? value.models.filter(
+          (model: unknown): model is string => typeof model === "string",
+        )
+      : typeof value.models === "string"
+      ? value.models
+          .split(",")
+          .map((model) => model.trim())
+          .filter(Boolean)
+      : [];
+
+    return [{ ...value, models } as unknown as Channel];
+  });
+}
+
 // result of sending a model a test image and pdf.
 // "failed" means even plain text requests failed, so nothing is known
 export type ModelCaps = {
@@ -239,7 +263,12 @@ export const useAppConfig = createPersistStore(
         if (idx !== -1) models[idx] = pModel;
         else models.push(pModel);
       });
-      return { ...currentState, ...state, models: models };
+      return {
+        ...currentState,
+        ...state,
+        models: models,
+        channels: normalizeChannels(state.channels),
+      };
     },
 
     migrate(persistedState, version) {

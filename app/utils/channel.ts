@@ -1,5 +1,5 @@
 import { Azure, DEFAULT_MODELS, ServiceProvider } from "../constant";
-import { Channel, useAppConfig } from "../store/config";
+import { Channel, normalizeChannels, useAppConfig } from "../store/config";
 import { getClientConfig } from "../config/client";
 
 // channel models are registered as custom models whose provider is the channel name
@@ -8,7 +8,7 @@ export function findChannel(providerName?: string) {
 }
 
 export function channelCustomModels(channels: Channel[]) {
-  return channels
+  return normalizeChannels(channels)
     .flatMap((c) => c.models.map((m) => `+${m}@${c.name}`))
     .join(",");
 }
@@ -19,7 +19,7 @@ export function sortChannelModels<
   T extends { name: string; provider?: { providerName: string } },
 >(models: T[], channels: Channel[]) {
   const rank = new Map(
-    channels
+    normalizeChannels(channels)
       .flatMap((c) => c.models.map((m) => `${m}@${c.name}`))
       .map((key, i) => [key, i]),
   );

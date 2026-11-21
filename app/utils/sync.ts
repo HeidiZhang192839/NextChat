@@ -8,6 +8,7 @@ import { useMaskStore } from "../store/mask";
 import { usePromptStore } from "../store/prompt";
 import { StoreKey } from "../constant";
 import { merge } from "./merge";
+import { normalizeChannels } from "../store/config";
 
 type NonFunctionKeys<T> = {
   [K in keyof T]: T[K] extends (...args: any[]) => any ? never : K;
@@ -114,7 +115,12 @@ export const MergeStates: StateMerger = {
     };
     return localState;
   },
-  [StoreKey.Config]: mergeWithUpdate<AppState[StoreKey.Config]>,
+  [StoreKey.Config]: (localState, remoteState) => {
+    const merged = mergeWithUpdate(localState, remoteState);
+    Object.assign(localState, merged);
+    localState.channels = normalizeChannels(localState.channels);
+    return localState;
+  },
   [StoreKey.Access]: mergeWithUpdate<AppState[StoreKey.Access]>,
 };
 
